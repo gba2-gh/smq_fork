@@ -1,6 +1,10 @@
-import numpy as nu
+import numpy as np
+import argparse
+import json
+from pathlib import Path
 from script.repro.d_error_decomposition import rle, boundaries, score, global_map
-from script.repro.d_boundary_vs_label import relabel_by_majority
+#from script.repro.d_boundary_vs_label import relabel_by_majority
+from script.repro.dump_predictions import DEFAULTS
 
 def relabel_by_majority(segmentation, gt):
     """Give every run of `segmentation` the majority GT label inside it."""
