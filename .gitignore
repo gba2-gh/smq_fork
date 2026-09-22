@@ -1,0 +1,6 @@
+data/
+models/
+results/seg/cache/
+results/seg/raw/
+results/
+*pdf

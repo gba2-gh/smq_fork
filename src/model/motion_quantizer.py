@@ -3,7 +3,9 @@
 # Adapted from : https://github.com/lucidrains/vector-quantize-pytorch
 # =============================================================================
 
-import torch 
+import math
+
+import torch
 from torch import einsum
 import torch.nn as nn
 import torch.nn.functional as F
@@ -42,25 +44,27 @@ def kmeans_time_series(samples, num_clusters, num_iters=10, metric='euclidean', 
     return means, cluster_sizes
 
 
-def euclidean_dist(ts1, ts2):
+def euclidean_dist(ts1, ts2, max_elems=2**28):
     """
     Compute pairwise Euclidean distances between two sets of temporal patches.
+
+    Chunked over ts2 so peak memory stays bounded for large codebooks. Every
+    published configuration fits in a single chunk and so runs exactly the
+    original computation; chunking only engages for enlarged codebooks.
     """
-    ts1 = ts1.unsqueeze(1)  # Shape: (N1, 1, window, embedding_dim)
-    ts2 = ts2.unsqueeze(0)  # Shape: (1, N2, window, embedding_dim)
+    n1, w, d = ts1.shape
+    step = max(1, max_elems // max(1, n1 * w * d))
+    out = []
+    for s in range(0, ts2.shape[0], step):
+        # Frame-wise squared differences: (N1, k, window, embedding_dim)
+        diff = ts1.unsqueeze(1) - ts2[s:s + step].unsqueeze(0)
+        squared_diff = diff ** 2
 
-    # Frame-wise squared differences
-    diff = ts1 - ts2
-    squared_diff = diff ** 2
-    
-    # Euclidean distance per frame
-    sum_squared_diff = torch.sum(squared_diff, dim=-1)
-    distances = torch.sqrt(sum_squared_diff)
-    
-    # Sum over time window to get patch-level distance
-    distances = torch.sum(distances, dim=-1)
+        # Euclidean distance per frame, summed over the time window
+        distances = torch.sqrt(torch.sum(squared_diff, dim=-1))
+        out.append(torch.sum(distances, dim=-1))
 
-    return distances
+    return out[0] if len(out) == 1 else torch.cat(out, dim=1)
 
 
 class SkeletonMotionQuantizer(nn.Module):
@@ -71,11 +75,18 @@ class SkeletonMotionQuantizer(nn.Module):
     using EMA update and optional time series K-Means initialization. 
     Includes dead-code replacement for stability.
     """
-    def __init__(self, num_embeddings, embedding_dim, window, commitment_cost, 
+    def __init__(self, num_embeddings, embedding_dim, window, commitment_cost,
                  decay=0.8, eps=1e-5, threshold_ema_dead_code=10, sampling_quantile=0.5,
-                replacement_strategy = "representative", kmeans=False, kmeans_metric='euclidean'):
+                replacement_strategy = "representative", kmeans=False, kmeans_metric='euclidean',
+                tc_weight=0.0, tc_beta=1.0):
 
         super(SkeletonMotionQuantizer, self).__init__()
+
+        # Optional temporal-consistency term (experiment T2; off by default, not
+        # part of published SMQ). See _temporal_consistency_loss.
+        self.tc_weight = tc_weight
+        self.tc_beta = tc_beta
+        self.tc_loss = torch.zeros(())
 
         # Codebook configuration
         self._num_embeddings = num_embeddings
@@ -146,7 +157,9 @@ class SkeletonMotionQuantizer(nn.Module):
         total_samples_needed = num_dead_codes * self.threshold_ema_dead_code
 
         # Compute distances between batch_samples and embeddings
-        distances = -euclidean_dist(batch_samples, self._embedding)
+        # Only used to rank candidate patches -- no gradient flows through it
+        with torch.no_grad():
+            distances = -euclidean_dist(batch_samples, self._embedding)
         min_distances, _ = distances.max(dim=1)
 
         # Compute quantile
@@ -194,6 +207,41 @@ class SkeletonMotionQuantizer(nn.Module):
             self._embedding.data[code_idx] = sampled_means[i]
             self.cluster_size.data[code_idx] = self.threshold_ema_dead_code
             self.embed_avg.data[code_idx] = sampled_means[i] * self.threshold_ema_dead_code
+
+    def _temporal_consistency_loss(self, valid_patches, valid_patch_mask, B, P):
+        """
+        Label-free proxy for "patches of the same action share a code".
+
+        Soft assignment q_i = softmax(-beta * standardised distance to each code).
+          smooth : symmetric cross-entropy between temporally adjacent patches of
+                   the same sequence (pulls neighbours onto one code and sharpens)
+          div    : log K - H(batch-mean q), zero when code usage is uniform
+                   (stops the smooth term collapsing everything onto one code)
+        """
+        K = self._num_embeddings
+        d = euclidean_dist(valid_patches, self._embedding.detach().clone())     # (N_valid, K)
+        s = (d - d.mean(dim=1, keepdim=True)) / (d.std(dim=1, keepdim=True) + 1e-6)
+        logq = F.log_softmax(-self.tc_beta * s, dim=1)
+        q = logq.exp()
+
+        q_full = q.new_zeros(B * P, K)
+        logq_full = q.new_zeros(B * P, K)
+        q_full[valid_patch_mask] = q
+        logq_full[valid_patch_mask] = logq
+        q_full, logq_full = q_full.view(B, P, K), logq_full.view(B, P, K)
+
+        vm = valid_patch_mask.view(B, P)
+        pair = vm[:, 1:] & vm[:, :-1]
+        if pair.any():
+            ce_fw = -(q_full[:, :-1] * logq_full[:, 1:]).sum(-1)
+            ce_bw = -(q_full[:, 1:] * logq_full[:, :-1]).sum(-1)
+            smooth = (0.5 * (ce_fw + ce_bw))[pair].mean()
+        else:
+            smooth = q.new_zeros(())
+
+        marg = q.mean(dim=0)
+        div = math.log(K) + (marg * torch.log(marg + 1e-8)).sum()
+        return smooth + div
 
     def expire_codes_(self, batch_samples, random_generator=None):
         """
@@ -247,8 +295,19 @@ class SkeletonMotionQuantizer(nn.Module):
         # Codebook init
         self.init_embed_(valid_patches)
 
+        # Temporal consistency (T2) -- uses the codebook as it stands before
+        # this step's EMA update, detached so only the encoder receives gradient
+        if self.training and self.tc_weight > 0:
+            self.tc_loss = self.tc_weight * self._temporal_consistency_loss(
+                valid_patches, valid_patch_mask, B, P)
+        else:
+            self.tc_loss = x.new_zeros(())
+
         # Assign codes to patches
-        distances_valid = -euclidean_dist(valid_patches, self._embedding)  # (N_valid, K)
+        # Only feeds argmax (and the returned distances, which no loss uses), so
+        # autograd bookkeeping here is pure memory cost: skip it
+        with torch.no_grad():
+            distances_valid = -euclidean_dist(valid_patches, self._embedding)  # (N_valid, K)
         encoding_indices_valid = torch.argmax(distances_valid, dim=1)      # (N_valid,)
         encoding_onehot_valid = F.one_hot(encoding_indices_valid, K).float()  # (N_valid, K)
 
@@ -269,10 +328,10 @@ class SkeletonMotionQuantizer(nn.Module):
             self.expire_codes_(valid_patches, random_generator=random_generator)
 
         # Quantization
-        quantize_valid = torch.sum(
-            encoding_onehot_valid.unsqueeze(-1).unsqueeze(-1) * self._embedding,
-            dim=1
-        )  # (N_valid, W, D)
+        # Codebook lookup. Equivalent to sum_k onehot_k * e_k (every other term is
+        # an exact zero), without materialising an (N_valid, K, W, D) tensor;
+        # the result is detached below by the straight-through estimator anyway
+        quantize_valid = self._embedding[encoding_indices_valid]  # (N_valid, W, D)
 
         # Put quantized patches back into the full patch tensor (invalid -> 0)
         quantized_patches = torch.zeros_like(x_patches)         # (B*P, W, D)

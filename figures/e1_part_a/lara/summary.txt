@@ -1,0 +1,7 @@
+dataset: lara
+patch_size: 50 frames
+n_segments: 14105
+mean_length_patches: 3.7348
+median_length_patches: 2.2000
+fraction_shorter_than_1_patch: 0.1435
+fraction_longer_than_5_patches: 0.1782

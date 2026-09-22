@@ -1,0 +1,18 @@
+dataset: lara
+checkpoint: models\lara\epoch-30.model
+n_sequences: 439
+n_subjects: 16
+chance_level: 0.0625
+code_usage_classifier_accuracy: mean=0.3052 std=0.0412 folds=[0.2386, 0.3182, 0.3636, 0.3182, 0.2874]
+action_label_baseline_accuracy: mean=0.1889 std=0.0605 folds=[0.2727, 0.25, 0.1364, 0.1591, 0.1264]
+gap_code_minus_action_baseline: 0.1163
+mean_pairwise_subject_jsd: 0.0900
+max_pairwise_subject_jsd: 0.2216
+min_pairwise_subject_jsd: 0.0028
+
+SCALE-NORMALISATION CONTROL: NOT RUN. Requires retraining the
+encoder on normalised input (feeding normalised skeletons through
+a model trained on raw input is out-of-distribution, not a valid
+control). Flagging cost: 1 additional full training run for this
+dataset (~10-15 min at current pace) plus a new preprocessing step
+(divide joint coordinates by a body-intrinsic length).

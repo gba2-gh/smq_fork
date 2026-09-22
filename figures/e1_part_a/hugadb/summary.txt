@@ -1,0 +1,7 @@
+dataset: hugadb
+patch_size: 60 frames
+n_segments: 3821
+mean_length_patches: 4.9637
+median_length_patches: 3.4667
+fraction_shorter_than_1_patch: 0.0424
+fraction_longer_than_5_patches: 0.2905

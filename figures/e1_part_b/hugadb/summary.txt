@@ -1,0 +1,16 @@
+dataset: hugadb
+checkpoint: models\hugadb\epoch-30.model
+bin_edges_frames: [0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0, 200.0, 220.0, 240.0, 260.0, 280.0, 300.0, 320.0, 340.0, 360.0, 380.0, 400.0, 420.0, 440.0, 460.0, 480.0, 500.0, 520.0, 540.0, 560.0, 580.0, 600.0, 620.0, 640.0, 660.0, 680.0, 700.0, 720.0, 740.0, 760.0, 780.0, 800.0, 820.0, 840.0, inf]
+n_bootstrap: 200
+--- dataset-level (frame-weighted across activities) ---
+jsd_x100 (raw): 89.54
+null_floor_x100 (sparsity): 26.18
+jsd_minus_floor_x100: 63.36
+quantization_ceiling_x100: 66.62
+jsd_relative_to_ceiling_x100 (raw - ceiling): 22.91
+DECOMPOSITION VERDICT: predicted JSD ~= quantization ceiling: duration error fully explained by patch size (no headroom for a duration-aware decoder at fixed patch size)
+wasserstein1_frames (frame-weighted, raw): 253.45
+wasserstein1_normalized (frame-weighted, /mean GT length): 0.5820
+ranking by (jsd - floor), best to worst: ['running', 'up_by_elevator', 'down_by_elevator', 'standing', 'sitting', 'going_up', 'walking', 'going_down']
+ranking by wasserstein-1, best to worst: ['sitting', 'walking', 'going_down', 'going_up', 'standing', 'running', 'down_by_elevator', 'up_by_elevator']
+orderings_agree: False

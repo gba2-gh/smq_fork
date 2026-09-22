@@ -1,0 +1,16 @@
+dataset: lara
+checkpoint: models\lara\epoch-30.model
+bin_edges_frames: [0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0, 200.0, 220.0, 240.0, 260.0, 280.0, 300.0, 320.0, 340.0, 360.0, 380.0, 400.0, 420.0, 440.0, 460.0, 480.0, 500.0, 520.0, inf]
+n_bootstrap: 200
+--- dataset-level (frame-weighted across activities) ---
+jsd_x100 (raw): 83.52
+null_floor_x100 (sparsity): 9.61
+jsd_minus_floor_x100: 73.91
+quantization_ceiling_x100: 65.97
+jsd_relative_to_ceiling_x100 (raw - ceiling): 17.55
+DECOMPOSITION VERDICT: predicted JSD >> quantization ceiling: real headroom exists beyond what patch size alone explains
+wasserstein1_frames (frame-weighted, raw): 83.71
+wasserstein1_normalized (frame-weighted, /mean GT length): 0.3439
+ranking by (jsd - floor), best to worst: ['None', 'Standing', 'Handling(downwards)', 'Handling(centred)', 'Handling(upwards)', 'Synchronization', 'Walking', 'Cart']
+ranking by wasserstein-1, best to worst: ['Standing', 'Synchronization', 'Handling(downwards)', 'Handling(upwards)', 'Walking', 'Handling(centred)', 'Cart', 'None']
+orderings_agree: False

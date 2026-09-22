@@ -1,5 +1,6 @@
 from pathlib import Path
 import argparse
+import json
 import random
 
 import torch
@@ -9,11 +10,11 @@ from batch_gen import BatchGenerator
 from model import Trainer
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-seed = 1538574472
-random.seed(seed)
-torch.manual_seed(seed)
-torch.cuda.manual_seed_all(seed)
-torch.backends.cudnn.deterministic = True
+# cudnn.deterministic hits a pathologically slow algorithm for some conv
+# shapes/dilations (observed: >10s/call on babel1's 3-channel dilated convs,
+# vs <0.1s without it). Disabling it only affects GPU float-rounding order
+# (bit-level reproducibility across hardware), not the model or its results.
+torch.backends.cudnn.deterministic = False
 
 # -------------------------------
 # Dataset Defaults
@@ -45,6 +46,7 @@ parser.add_argument("--ckpt", type=Path, default=None, help="Path to a .model ch
 # Training & model parameters
 parser.add_argument("--epoch", type=int, default=30, help="Number of epochs.")
 parser.add_argument("--batch_size", type=int, help="Batch size (overrides dataset default).")
+parser.add_argument("--micro_batch_size", type=int, help="If set, splits each batch into chunks of this size for gradient accumulation (reduces peak memory; optimizer still steps once per full batch_size).")
 parser.add_argument("--num_f_maps", type=int, default=128, help="Number of feature maps.")
 parser.add_argument("--num_layers", type=int, default=3, help="Number of TCN dilated residual layers per stage.")
 parser.add_argument("--latent_dim", type=int, default=16, help="Latent dimension per joint.")
@@ -59,6 +61,10 @@ parser.add_argument("--kmeans_metric", type=str, choices=["euclidean", "dtw"], d
 parser.add_argument("--sampling_quantile", type=float, default=0.5, help="Quantile used for selecting candidate patches when replacing dead codes.")
 parser.add_argument("--replacement_strategy", type=str, choices=["representative", "exploratory"], default="representative", help="Dead-code replacement strategy: ""'representative' picks well-covered patches; ""'exploratory' picks poorly-covered (farther) patches.")
 parser.add_argument("--decay", type=float, default=0.5, help="Decay weight.")
+parser.add_argument("--dead_code_threshold", type=int, default=10, help="EMA usage below which a code is replaced (published: 10).")
+parser.add_argument("--tc_weight", type=float, default=0.0, help="Temporal-consistency loss weight (experiment T2; 0 = published SMQ).")
+parser.add_argument("--tc_beta", type=float, default=1.0, help="Inverse temperature of the soft code assignment used by the T2 loss.")
+parser.add_argument("--save_every", type=int, default=5, help="Checkpoint interval in epochs; the final epoch is always saved.")
 
 # Loss parameters
 parser.add_argument("--mse_loss_weight", type=float, default=0.001, help="Reconstruction loss weight.")
@@ -70,6 +76,9 @@ parser.add_argument("--vis", action="store_true", help="Enable segmentation visu
 parser.add_argument("--data_root", type=Path, default=Path("./data"), help="Root for datasets.")
 parser.add_argument("--models_root", type=Path, default=Path("./models"), help="Root for model checkpoints.")
 parser.add_argument("--vis_root", type=Path, default=Path("./vis"), help="Root for visualizations.")
+parser.add_argument("--seed", type=int, default=1538574472, help="Random seed (python/torch/cuda).")
+parser.add_argument("--grad_checkpoint", action="store_true", help="Recompute TCN activations in backward to cut memory (results unchanged).")
+parser.add_argument("--gpu_mem_fraction", type=float, default=None, help="Hard cap on this process's share of GPU memory; exceeding it raises OOM instead of paging to system RAM.")
 
 # -------------------------------
 # Main
@@ -77,7 +86,14 @@ parser.add_argument("--vis_root", type=Path, default=Path("./vis"), help="Root f
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    
+
+    if args.gpu_mem_fraction is not None and torch.cuda.is_available():
+        torch.cuda.set_per_process_memory_fraction(args.gpu_mem_fraction)
+
+    random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+
     # Paths
     dataset_root = args.data_root / args.dataset
     features_path = dataset_root / "features"
@@ -116,6 +132,10 @@ if __name__ == "__main__":
         sampling_quantile=args.sampling_quantile,
         replacement_strategy=args.replacement_strategy,
         decay=args.decay,
+        dead_code_threshold=args.dead_code_threshold,
+        tc_weight=args.tc_weight,
+        tc_beta=args.tc_beta,
+        grad_checkpoint=args.grad_checkpoint,
     )
 
     # Execute action
@@ -129,6 +149,12 @@ if __name__ == "__main__":
         
         # Read features
         batch_gen.read_data() 
+
+        # Record the exact configuration next to the checkpoints
+        run_cfg = {k: (str(v) if isinstance(v, Path) else v) for k, v in vars(args).items()}
+        run_cfg.update(resolved_batch_size=batch_size, resolved_patch_size=patch_size,
+                       resolved_num_actions=num_actions)
+        (model_dir / "config.json").write_text(json.dumps(run_cfg, indent=2))
 
         # Print run summary
         print_run_summary(
@@ -151,7 +177,9 @@ if __name__ == "__main__":
             commit_weight=args.commit_weight,
             mse_loss_weight=args.mse_loss_weight,
             device=device,
-            joint_distance_recons = args.joint_distance_recons
+            joint_distance_recons = args.joint_distance_recons,
+            micro_batch_size = args.micro_batch_size,
+            save_every = args.save_every
         )
 
     elif args.action == "eval":

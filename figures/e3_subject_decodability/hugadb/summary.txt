@@ -1,0 +1,18 @@
+dataset: hugadb
+checkpoint: models\hugadb\epoch-30.model
+n_sequences: 364
+n_subjects: 18
+chance_level: 0.0556
+code_usage_classifier_accuracy: mean=0.2170 std=0.0352 folds=[0.1507, 0.2192, 0.2466, 0.2466, 0.2222]
+action_label_baseline_accuracy: mean=0.0852 std=0.0392 folds=[0.0548, 0.1096, 0.137, 0.0274, 0.0972]
+gap_code_minus_action_baseline: 0.1318
+mean_pairwise_subject_jsd: 0.2264
+max_pairwise_subject_jsd: 0.5212
+min_pairwise_subject_jsd: 0.0266
+
+SCALE-NORMALISATION CONTROL: NOT RUN. Requires retraining the
+encoder on normalised input (feeding normalised skeletons through
+a model trained on raw input is out-of-distribution, not a valid
+control). Flagging cost: 1 additional full training run for this
+dataset (~10-15 min at current pace) plus a new preprocessing step
+(divide joint coordinates by a body-intrinsic length).

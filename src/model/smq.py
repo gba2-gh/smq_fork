@@ -14,8 +14,8 @@ class SMQModel(nn.Module):
     """
     def __init__(self, in_channels=6, filters=64, num_layers = 3, latent_dim=16, 
                  num_actions=8, num_joints=22, num_person=1, patch_size=50, kmeans=False, 
-                 kmeans_metric='euclidean', sampling_quantile=0.5, replacement_strategy="representative", 
-                 decay=0.5):
+                 kmeans_metric='euclidean', sampling_quantile=0.5, replacement_strategy="representative",
+                 decay=0.5, dead_code_threshold=10, tc_weight=0.0, tc_beta=1.0):
         
         super(SMQModel, self).__init__()
 
@@ -35,9 +35,9 @@ class SMQModel(nn.Module):
         # VQ
         self.vq = SkeletonMotionQuantizer(num_embeddings = num_actions, embedding_dim = latent_dim * num_joints * num_person, 
                       window = patch_size, commitment_cost = 1.0, decay=decay, eps=1e-5,
-                      threshold_ema_dead_code=10, sampling_quantile=sampling_quantile, 
-                      replacement_strategy = replacement_strategy,kmeans=kmeans, 
-                      kmeans_metric =kmeans_metric)
+                      threshold_ema_dead_code=dead_code_threshold, sampling_quantile=sampling_quantile,
+                      replacement_strategy = replacement_strategy,kmeans=kmeans,
+                      kmeans_metric =kmeans_metric, tc_weight=tc_weight, tc_beta=tc_beta)
         
         # Decoder
         self.decoder = MultiStageModel(num_layers = num_layers, num_f_maps = filters, 

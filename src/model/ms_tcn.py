@@ -3,8 +3,10 @@
 # Adapted from MS-TCN: https://github.com/yabufarha/ms-tcn
 # =============================================================================
 
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint
 import copy
 
 class MultiStageModel(nn.Module):
@@ -25,8 +27,18 @@ class SingleStageModel(nn.Module):
         self.conv_1x1 = nn.Conv1d(dim, num_f_maps, 1)
         self.layers = nn.ModuleList([copy.deepcopy(DilatedResidualLayer(2 ** i, num_f_maps, num_f_maps)) for i in range(num_layers)])
         self.conv_out = nn.Conv1d(num_f_maps, target_dim, 1)
+        # Recompute this stage's activations during backward instead of storing
+        # them. A stage's input and output are narrow (6-16 channels), so almost
+        # nothing full-width is kept. Memory only; RNG state is preserved so
+        # dropout masks match.
+        self.grad_checkpoint = False
 
     def forward(self, x, mask):
+        if self.grad_checkpoint and self.training and torch.is_grad_enabled():
+            return checkpoint(self._forward, x, mask, use_reentrant=False)
+        return self._forward(x, mask)
+
+    def _forward(self, x, mask):
         out = self.conv_1x1(x)
         for layer in self.layers:
             out = layer(out, mask)

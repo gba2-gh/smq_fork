@@ -1,0 +1,7 @@
+dataset: babel3
+patch_size: 30 frames
+n_segments: 677
+mean_length_patches: 4.0583
+median_length_patches: 1.7667
+fraction_shorter_than_1_patch: 0.3043
+fraction_longer_than_5_patches: 0.2260

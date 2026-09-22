@@ -1,0 +1,4 @@
+dataset,checkpoint,jsd_x100,null_floor_x100,jsd_minus_floor_x100,quantization_ceiling_x100,jsd_relative_to_ceiling_x100,decomposition_verdict,wasserstein1_frames,wasserstein1_normalized,orderings_agree_within_dataset
+babel1,models\babel1\epoch-30.model,82.0,5.32,76.67,45.92,36.08,predicted JSD >> quantization ceiling: real headroom exists beyond what patch size alone explains,32.94,0.6186,False
+hugadb,models\hugadb\epoch-30.model,89.54,26.18,63.36,66.62,22.91,predicted JSD ~= quantization ceiling: duration error fully explained by patch size (no headroom for a duration-aware decoder at fixed patch size),253.45,0.582,False
+lara,models\lara\epoch-30.model,83.52,9.61,73.91,65.97,17.55,predicted JSD >> quantization ceiling: real headroom exists beyond what patch size alone explains,83.71,0.3439,False

@@ -1,0 +1,9 @@
+activity,n_videos_matched,n_videos_no_predicted_segment,n_gt_segments,frame_weight,jsd_x100,null_floor_x100,jsd_minus_floor_x100,quantization_ceiling_x100,jsd_relative_to_ceiling_x100,wasserstein1_frames,wasserstein1_normalized
+walking,187,56,959,314966,95.8,18.57,77.23,68.93,26.86,76.53,0.233
+running,63,16,71,65917,58.4,50.98,7.43,38.05,20.35,545.09,0.5871
+going_up,69,151,436,135127,97.23,21.15,76.09,73.87,23.36,201.79,0.6511
+going_down,55,134,468,119819,97.99,18.97,79.03,74.01,23.98,163.73,0.6395
+sitting,82,2,340,82819,93.96,26.13,67.83,77.51,16.45,73.21,0.3005
+standing,267,40,802,222649,85.18,20.12,65.05,73.08,12.1,248.54,0.8953
+up_by_elevator,17,203,108,89144,72.69,48.8,23.89,44.72,27.97,708.81,0.8587
+down_by_elevator,23,252,91,68762,91.5,50.04,41.46,50.73,40.77,684.77,0.9062

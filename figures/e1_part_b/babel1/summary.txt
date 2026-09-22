@@ -1,0 +1,16 @@
+dataset: babel1
+checkpoint: models\babel1\epoch-30.model
+bin_edges_frames: [0.0, 20.0, 40.0, 60.0, 80.0, 100.0, 120.0, 140.0, 160.0, 180.0, inf]
+n_bootstrap: 200
+--- dataset-level (frame-weighted across activities) ---
+jsd_x100 (raw): 82.00
+null_floor_x100 (sparsity): 5.32
+jsd_minus_floor_x100: 76.67
+quantization_ceiling_x100: 45.92
+jsd_relative_to_ceiling_x100 (raw - ceiling): 36.08
+DECOMPOSITION VERDICT: predicted JSD >> quantization ceiling: real headroom exists beyond what patch size alone explains
+wasserstein1_frames (frame-weighted, raw): 32.94
+wasserstein1_normalized (frame-weighted, /mean GT length): 0.6186
+ranking by (jsd - floor), best to worst: ['jump', 'turn', 'none', 'walk', 'stand']
+ranking by wasserstein-1, best to worst: ['turn', 'walk', 'stand', 'jump', 'none']
+orderings_agree: False
