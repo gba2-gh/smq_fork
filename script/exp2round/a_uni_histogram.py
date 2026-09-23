@@ -6,6 +6,9 @@ import numpy as np
 import argparse
 import json
 from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from script.repro.d_error_decomposition import rle, boundaries, score, global_map
 #from script.repro.d_boundary_vs_label import relabel_by_majority
 from script.repro.dump_predictions import DEFAULTS
@@ -43,6 +46,8 @@ def main():
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
 
+    print("run")
+
     d = np.load(args.preds, allow_pickle=True)
     patch = int(d["patch_size"])
     gts = [np.asarray(g) for g in d["gt"]] # gt segments
@@ -52,41 +57,70 @@ def main():
 
     res = {"dataset": args.dataset, "ckpt": str(args.ckpt), "patch_size": patch}
 
-    # ---------------- D7 ----------------
+    #---------------- D7 ----------------
     res["d7_smq"] = score(gts, mapped)
     res["d7_smq_bnd_oracle_lab"] = score(gts, [relabel_by_majority(p, g) for p, g in zip(mapped, gts)])
     gt_seg_codes = [codes_on_gt_segments(g, p) for g, p in zip(gts, prs)]
     res["d7_gt_bnd_smq_lab"] = score(gts, global_map(gts, gt_seg_codes))
 
+    #exp2 A
+    num_units = max(p.max() for p in prs) + 1
+    X = []
+    total_lenght = 0
+    total_seg = 0
+    for gt, p in zip(gts, prs):
+        L, _, S = rle(gt)  # labels and lenghts for 1 video seq
+        for s,l in zip(S,L): 
+            e = s+ l
+            total_lenght +=l
+            total_seg +=1
+            unit_hist = np.zeros(num_units)
+
+            value,count = np.unique(p[s:e], return_counts = True)
+            #unit_hist[v] = np.sqrt(c/s)  for v, c in zip(value, count) #unit histogram divided by segmetn lenght, root sqrt hellinger dist
+            for v, c in zip(value, count):
+                unit_hist[v] = c/l 
+            unit_hist = np.sqrt(unit_hist)
+            X.append(unit_hist)
+
+        
+
+    seed = 1538574472
+    K = 500#int(d["num_actions"])
+    km =KMeans(n_clusters=K,n_init=5,max_iter=100,random_state=seed).fit(X)
+    #centers=km.cluster_centers_.astype(np.float32) 
+    kmean_pred = km.labels_
+    print(len(kmean_pred))
+    print(f"mean lenght{total_lenght/total_seg}")
+
+    clustered_predictions =[]
+    segment_index = 0
+    for gt, p in zip(gts, prs):
+        seq_predictions = np.zeros_like(gt)
+        L, _, S = rle(gt)  # labels and lenghts for 1 video seq
+        for s,l in zip(S,L): 
+            e = s+ l
+            seq_predictions[s:e] = kmean_pred[segment_index]
+            segment_index += 1
+
+        clustered_predictions.append(seq_predictions)
+
+    
+    mapped = global_map(gts, clustered_predictions)
+    scores = score(gts, mapped)
+    print(scores)
+    res["unit_histogram_exp"] = scores
+
+
     print(json.dumps(res, indent=2))
-    out = args.out or Path(f"results/exp2round/d_uni_histogram_{args.dataset}.json")
+    out = args.out or Path(f"results/exp2round/a_unit_histogram_{args.dataset}.json")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(res, indent=2))
 
 
-    #exp2 A
-    out = np.empty_like(pred_codes)
-    L, _, S = rle(gts)
-    for l, in zip(S,L):
-        e = s+ l
-        unit_hist = np.zeros(1000)
 
-        value,count = np.unique(pred_codes[s:e], return_counts = True)
-        #unit_hist[v] = np.sqrt(c/s)  for v, c in zip(value, count) #unit histogram divided by segmetn lenght, root sqrt hellinger dist
-        unit_hist[v] = c/s for v, c in zip(value, count)
-        unit_hist = np.squrt(unit_hist)
-        out[s:e] = unit_hist
-    return out
 
-    K = 10
-    km=KMeans(n_clusters=K,n_init=5,max_iter=100,random_state=seed).fit(out)
-    centers=km.cluster_centers_.astype(np.float32) 
-    kmean_pred = km.labels_
-    mapped = global_map(gts, kmean_pred)
-    score = score(gts, mapped)
-    print(score)
 
-    #km = MiniBatchKMeans(n_clusters=K, batch_size=4096, n_init=3, max_iter=100,random_state=seed).fit(d["X"])
-    #labels = km.labels_.astype(np.int16)
-
-                           
+if __name__ == "__main__":
+    main()                       
+       
