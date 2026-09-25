@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -252,7 +253,8 @@ def main() -> None:
     write_csv(not_run, "not_run.csv")
     manifest_path = OUT / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-    manifest["completed_utc"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    # Consolidating reports is not a new experiment completion event.
+    manifest["report_consolidated_utc"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     manifest["deadline_utc"] = "2026-09-23T19:26:12Z"
     manifest["deadline_compliance"] = False
     manifest["deadline_note"] = "Execution was paused and later resumed on the user's instruction to finish; all planned cells were completed."
@@ -283,7 +285,9 @@ def main() -> None:
     render_information(info)
     render_performance(pooled, supervised)
     render_reuse(reuse)
-    write_report(pooled, info, supervised, reuse, not_run, manifest)
+    sys.path.insert(0, str(ROOT))
+    from script.exp2round.q1q2.report_complete import main as complete_report
+    complete_report()
     print(json.dumps(checks, indent=2))
     if missing:
         raise SystemExit("planned output counts are incomplete")

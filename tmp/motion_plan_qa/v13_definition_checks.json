@@ -1,0 +1,7 @@
+{
+  "definition_checks": "pass",
+  "rounding_failures": 286,
+  "first_failure": 49,
+  "stage_a_solver_tested": false,
+  "experimental_data_used": false
+}

@@ -1,0 +1,21 @@
+{
+  "preset": "standard_business_brief",
+  "header": "memo_masthead",
+  "paragraphs": 271,
+  "tables": 6,
+  "words": 6825,
+  "parts": [
+    "[Content_Types].xml",
+    "_rels/.rels",
+    "word/document.xml",
+    "word/styles.xml",
+    "word/numbering.xml",
+    "word/settings.xml",
+    "word/_rels/document.xml.rels",
+    "word/header1.xml",
+    "word/footer1.xml"
+  ],
+  "visual_qa": "Unavailable: LibreOffice absent; renderer also lacks pdf2image in available runtime.",
+  "version": "1.3",
+  "structural_qa": "PASS: all 9 XML parts parse; 6 tables have consistent 9360-DXA geometry; corrected cosine, restoration, parity and reporting text present."
+}

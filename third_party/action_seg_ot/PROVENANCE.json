@@ -1,0 +1,11 @@
+{
+  "source": "https://github.com/mingu6/action_seg_ot",
+  "pinned_commit": "0c4c86b1037eb4c3e262197aeee115b31e220c9d",
+  "local_clone_head": "0c4c86b1037eb4c3e262197aeee115b31e220c9d",
+  "files_copied": ["LICENSE", "README.md", "src/asot.py", "src/utils.py", "src/metrics.py"],
+  "sha256": {
+    "src/asot.py": "9248e2055c08bc86c579137f35f48a3a0304e6ea386b3cba1ecd62b22d2ac13",
+    "LICENSE": "89b0bbda6ecf60b440743618410ca34889fd85137aa1fd793ebbdf368e8415d"
+  },
+  "note": "Copied unchanged from the local clone at C:\\Users\\gzaz976\\Documents\\repo\\Behaviour\\action_seg_ot, whose HEAD matches the pinned commit exactly. Used only as a parity-test reference (equal-mass mode); production Stage A code lives in script/action_transport and does not import or modify these files' logic."
+}

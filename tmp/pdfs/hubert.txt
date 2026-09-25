@@ -1,0 +1,749 @@
+                                                                                                                                                                                       1
+
+
+
+
+                                             HuBERT: Self-Supervised Speech Representation
+                                             Learning by Masked Prediction of Hidden Units
+                                                                    Wei-Ning Hsu, Benjamin Bolte, Yao-Hung Hubert Tsai, Kushal Lakhotia,
+                                                                               Ruslan Salakhutdinov, Abdelrahman Mohamed
+
+
+
+                                            Abstract—Self-supervised approaches for speech representa-                  universal representations since labels, annotations, and text-
+                                         tion learning are challenged by three unique problems: (1) there               only material ignores rich information in the input signal.
+                                         are multiple sound units in each input utterance, (2) there is                    Learning speech representations without reliance on large
+arXiv:2106.07447v1 [cs.CL] 14 Jun 2021
+
+
+
+
+                                         no lexicon of input sound units during the pre-training phase,
+                                         and (3) sound units have variable lengths with no explicit                     volumes of labeled data is crucial for industrial applications
+                                         segmentation. To deal with these three problems, we propose                    and products with ever-increasing coverage of new languages
+                                         the Hidden-Unit BERT (HuBERT) approach for self-supervised                     and domains. The time needed to collect large labeled datasets
+                                         speech representation learning, which utilizes an offline clustering           covering each of these scenarios is the real bottleneck in the
+                                         step to provide aligned target labels for a BERT-like prediction               current fast-moving AI industry, with time-to-market playing
+                                         loss. A key ingredient of our approach is applying the prediction
+                                         loss over the masked regions only, which forces the model to learn             a critical role for product success. Building more inclusive
+                                         a combined acoustic and language model over the continuous                     applications covering spoken-only dialects and languages is
+                                         inputs. HuBERT relies primarily on the consistency of the                      another significant benefit of reducing dependence on lin-
+                                         unsupervised clustering step rather than the intrinsic quality                 guistic resources. Given their non-standard orthographic rules,
+                                         of the assigned cluster labels. Starting with a simple k-means                 many of these languages and dialects have very little or no
+                                         teacher of 100 clusters, and using two iterations of clustering, the
+                                         HuBERT model either matches or improves upon the state-of-                     resources at all.
+                                         the-art wav2vec 2.0 performance on the Librispeech (960h) and                     Pseudo-labeling (PL), also known as self-training and be-
+                                         Libri-light (60,000h) benchmarks with 10min, 1h, 10h, 100h, and                longs to the family of semi-supervised learning techniques,
+                                         960h fine-tuning subsets. Using a 1B parameter model, HuBERT                   has been the dominant approach for utilizing unlabeled speech
+                                         shows up to 19% and 13% relative WER reduction on the more                     and audio with successful applications dating back to the mid-
+                                         challenging dev-other and test-other evaluation subsets.1
+                                                                                                                        1990s [7]–[10]. PL starts with some supervised data to train
+                                            Index Terms—Self-supervised learning, BERT.                                 a ”teacher” model in one specific downstream task. Pseudo-
+                                                                                                                        labels are then generated for the unlabeled data using the
+                                                                                                                        teacher model. Next, a student model is trained using the
+                                                                   I. I NTRODUCTION                                     combined supervised and teacher-labeled data either using the
+                                            The north star for many research programs has been learning                 standard cross-entropy [9] loss or using a contrastive loss [11]
+                                         speech and audio representations through listening and inter-                  to account for noise in teacher-generated labels. The pseudo-
+                                         action, similar to how babies learn their first language. High                 labeling process may be repeated multiple times to improve
+                                         fidelity speech representation includes disentangled aspects                   teacher label quality [12] iteratively.
+                                         of the spoken content along with non-lexical information of                       Without discounting the immense success of pseudo-
+                                         how it is delivered, e.g., speaker identity, emotion, hesitation,              labeling techniques, self-supervised representations offer two
+                                         interruptions. Furthermore, reaching a complete situational                    unique advantages: (1) Pseudo-label methods force student
+                                         understanding requires modeling structured noise interleaving                  models to merely mimic a teacher model, which is limited by
+                                         and overlapping with the speech signal, e.g., laughter, cough-                 its supervised data size and the provided annotation quality. On
+                                         ing, lip-smacking, background vehicle engine, birds chirping,                  the other hand, self-supervised pretext tasks force the model
+                                         or food sizzling sounds.                                                       to represent the entire input signal by compressing much
+                                            The need for such high-fidelity representations drove re-                   more bits of information into the learned latent representation.
+                                         search in self-supervised learning for speech and audio where                  (2) In pseudo-labeling, the supervised data of the teacher
+                                         the targets driving the learning process of a designed pretext                 model forces the whole learning to be geared towards a single
+                                         task are drawn from the input signal itself. Examples of                       downstream task. On the contrary, self-supervised features
+                                         pretext tasks for self-supervised speech representation learning               show better generalization to a multitude of downstream
+                                         include distinguishing near-by features from temporally distant                applications.
+                                         ones [1]–[3], next-step prediction of audio features [4], masked                  There have been impressive successes for self-supervised
+                                         prediction of audio features given unmasked context [5], [6].                  learning in Computer Vision (CV) [13]–[15] and Natural
+                                         Besides, self-supervised learning methods do not rely on any                   Language Processing (NLP) [16]–[18] applications. Learning
+                                         linguistic resources during training, allowing them to learn                   representations of discrete input sequences, such as in Natural
+                                                                                                                        Language Processing (NLP) applications, uses either masked
+                                              1 The code, pre-trained and fine-tuned models are available at https://   prediction [19], [20] or auto-regressive generation [18], [21]
+                                         github.com/pytorch/fairseq/tree/master/examples/hubert.                        of input sequences with partial obfuscation. For continuous
+                                                                                                                                   2
+
+
+
+inputs, such as in Computer Vision (CV) applications, repre-       k-means and Gaussian mixture models (GMMs) infer hidden
+sentations are often learned through instance classification, in   units that exhibit non-trivial correlation with the underlying
+which each image and its augmentations are treated as a single     acoustic units [26] (see also Table V). More advanced sys-
+output class to be pulled together [14], [15] or contrasted        tems can achieve better acoustic unit discovery performance
+against other negative samples [22].                               using better graphical models [27], [28] or parameterizes the
+   Speech signals differ from text and images in that they         distributions with more powerful neural network models [29]–
+are continuous-valued sequences. Self-supervised learning for      [33].
+the speech recognition domain faces unique challenges from
+those in CV and NLP. Firstly, the presence of multiple sounds
+in each input utterance breaks the instance classification as-
+sumption used in many CV pre-training approaches. Secondly,
+during pre-training, there is no prior lexicon of discrete sound
+units available, as in NLP applications in which words or word
+pieces are used, hindering the use of predictive losses. Lastly,
+the boundaries between sound units are not known, which
+complicates masked prediction pre-training.
+   In this paper, we introduce Hidden unit BERT (HuBERT)
+that benefits from an offline clustering step to generate noisy
+labels for a BERT-like per-training. Concretely, a BERT model
+consumes masked continuous speech features to predict pre-
+determined cluster assignments. The predictive loss is only
+applied over the masked regions, forcing the model to learn
+good high-level representations of unmasked inputs to infer
+the targets of masked ones correctly. Intuitively, the HuBERT
+model is forced to learn both acoustic and language models
+from continuous inputs. First, the model needs to model            Fig. 1: The HuBERT approach predicts hidden cluster assign-
+unmasked inputs into meaningful continuous latent representa-      ments of the masked frames (y2 , y3 , y4 in the figure) generated
+tions, which maps to the classical acoustic modeling problem.      by one or more iterations of k-means clustering.
+Second, to reduce the prediction error, the model needs to
+capture the long-range temporal relations between learned             Inspired by this, we propose to use acoustic unit discovery
+representations. One crucial insight motivating this work is       models to provide frame-level targets. Let X denote a speech
+the importance of consistency of the targets, not just their       utterance X = [x1 , · · · , xT ] of T frames. Discovered hidden
+correctness, which enables the model to focus on modeling          units are denoted with h(X) = Z = [z1 , · · · , zT ], where
+the sequential structure of input data. Our approach draws         zt ∈ [C] is a C-class categorical variable and h is a clustering
+inspiration from the DeepCluster method for self-supervised        model, e.g. k-means.
+visual learning [23]; however, HuBERT benefits from the
+masked prediction loss over speech sequences to represent
+their sequential structure.                                        B. Representation Learning via Masked Prediction
+   When the HuBERT model is pre-trained on either the                 Let M ⊂ [T ] denote the set of indices to be masked for a
+standard Librispeech 960h [24] or the Libri-Light 60k hours        length-T sequence X, and X̃ = r(X, M ) denote a corrupted
+[25], it either matches or improves upon the state-of-the-         version of X where xt is replaced with a mask embedding x̃
+art wav2vec 2.0 [6] performance on all fine-tuning subsets         if t ∈ M . A masked prediction model f takes as input X̃ and
+of 10mins, 1h, 10h, 100h, and 960h. We present systematic          predicts a distribution over the target indeces at each timestep
+results on three model sizes pre-trained with HuBERT: BASE         pf (· | X̃, t). There are two decisions to be made for masked
+(90M parameters), L ARGE (300M), and X-L ARGE (1B). The            prediction: how to mask and where to apply the prediction
+X-L ARGE model shows up to 19% and 13% relative WER                loss.
+improvement from L ARGE models on dev-other and test-other            Regarding the first decision, we adopt the same strategies
+evaluation subsets when pre-trained on the Libri-Light 60k         used in SpanBERT [34] and wav2vec 2.0 [6] for mask genera-
+hours.                                                             tion, where p% of the timesteps are randomly selected as start
+                                                                   indices, and spans of l steps are masked. To address the second
+                         II. M ETHOD                               decision, we denote the cross-entropy loss computed over
+                                                                   masked and unmasked timesteps as Lm and Lu , respectively.
+A. Learning the Hidden Units for HuBERT                            Lm is defined as:
+  An acoustic model trained on text and speech pairs provides                                      X
+pseudo-phonetic labels for each frame via forced alignment in                   Lm (f ; X, M, Z) =      log pf (zt | X̃, t),    (1)
+                                                                                                  t∈M
+semi-supervised learning. On the contrary, the self-supervised
+representation learning setup has access to speech-only data.      and Lu is of the same form except that it sums over t 6∈
+Nevertheless, simple discrete latent variable models such as       M . The final loss is computed as a weighted sum of the two
+                                                                                                                                            3
+
+
+
+terms: L = αLm + (1 − α)Lu . In the extreme case when α =           We consider HuBERT in three different configurations: BASE,
+0, the loss is computed over the unmasked timesteps, which          L ARGE, and X-L ARGE. The fisrt two follow the architectures
+is similar to acoustic modeling in hybrid speech recognition        of wav2vec 2.0 BASE and L ARGE closely. The X-L ARGE
+systems [35]–[38]. In our setup, this limits the learning process   architecture expands the model size to about 1 billion pa-
+to mimicking the clustering model.                                  rameters, similar to the size of the Conformer XXL model
+   In the other extreme with α = 1, the loss is only computed       in [40]. The waveform encoder is identical for all the three
+over the masked timesteps where the model has to predict            configurations, which is composed of seven 512-channel layers
+the targets corresponding to the unseen frames from context,        with strides [5,2,2,2,2,2,2] and kernel widths [10,3,3,3,3,2,2].
+analogous to language modeling. It forces the model to learn        The BERT encoder consists of many identical transformer
+both the acoustic representation of unmasked segments and           blocks, whose parameters along with the parameter of the
+the long-range temporal structure of the speech data. We            subsequent projection layer are specified in Table I.
+hypothesize that the setup with α = 1 is more resilient to
+the quality of cluster targets, which is demonstrated in our                                             BASE      L ARGE      X-L ARGE
+experiments (see Table V).                                                                 strides               5, 2, 2, 2, 2, 2, 2
+                                                                       CNN Encoder      kernel width            10, 3, 3, 3, 3, 2, 2
+                                                                                          channel                       512
+C. Learning with Cluster Ensembles                                                          layer         12         24            48
+   A simple idea to improve target quality is to utilize multi-                       embedding dim.     768        1024          1280
+                                                                        Transformer   inner FFN dim.     3072       4096          5120
+ple clustering models. While an individual clustering model                            layerdrop prob    0.05        0              0
+may perform terribly, cluster ensembles can provide com-                               attention heads    8          16            16
+plementary information to facilitate representation learning.            Projection        dim.          256         768          1024
+For example, an ensemble of k-means models with different
+                                                                               Num. of Params            95M        317M         964M
+codebook sizes can create targets of different granularity,
+from manner classes (vowel/consonant) to sub-phone states           TABLE I: Model architecture summary for BASE, L ARGE,
+(senones). To extend the proposed framework, let Z (k) be the       and X-L ARGE HuBERT models
+target sequences generated by the k-th clustering model. We
+can now re-write Lm as:                                                The convolutional waveform encoder generates a feature
+                               XX        (k) (k)                    sequence at a 20ms framerate for audio sampled at 16kHz
+  Lm (f ; X, {Z (k) }k , M ) =      log pf (zt | X̃, t), (2)
+                                                                    (CNN encoder down-sampling factor is 320x). The audio
+                             t∈M   k
+                                                                    encoded features are then randomly masked as described in
+and similarly for the unmasked loss Lu . This is analogous          Section II-B. The BERT encoder takes as input the masked
+to multi-task learning, but with tasks created by unsupervised      sequence and outputs a feature sequence [o1 , · · · , oT ]. The
+clustering.                                                         distribution over codewords is parameterized with
+   Additionally, ensembling is intriguing because it can be
+used alongside product quantization (PQ) [39], where a fea-                (k)                exp(sim(A(k) ot , ec )/τ )
+                                                                          pf (c | X̃, t) = PC                                 ,           (3)
+ture space is partitioned into multiple subspaces, and each                                 c0 =1 exp(sim(A
+                                                                                                            (k) o , e 0 )/τ )
+                                                                                                                 t c
+subspace is quantized separately. PQ allows effective Eu-
+clidean distance-based quantization such as k-means for high-       where A is the projection matrix, ec is the embedding for
+dimensional features and heterogeneous features whose scale         codeword c, sim(·, ·) computes the cosine similarity between
+differs significantly between subspaces. In this case, the theo-    two vectors, and τ scales the logit, which is set to 0.1. When
+retical size of the target space is the product of all codebooks’   cluster ensembles are used, one projection matrix A(k) is
+sizes.                                                              applied for each clustering model k.
+                                                                       After HuBERT pre-training, We use the connectionist tem-
+                                                                    poral classification (CTC) [41] loss for ASR fine-tuning of the
+D. Iterative Refinement of Cluster Assignments                      whole model weights except the convolutional audio encoder,
+   In addition to using cluster ensembles, another direction        which remains frozen. The projection layer(s) is removed
+for improved representation is refining the cluster assignments     and replaced with a randomly initialized softmax layer. The
+throughout the learning process. Since we expect a pre-trained      CTC target vocabulary includes 26 English characters, a space
+model to provide better representations than the raw acoustic       token, an apostrophe, and a special CTC blank symbol.
+feature such as MFCCs, we can create a new generation of
+clusters by training a discrete latent model over the learned                           III. R ELATED W ORK
+latent representations. The learning process then proceeds with
+the newly discovered units.                                            We discuss recent studies on self-supervised speech rep-
+                                                                    resentation learning by grouping them by training objective.
+                                                                    The earliest line of work learns representations by postulating
+E. Implementation                                                   a generative model for speech with latent variables, which
+   Our pre-trained models follows the wav2vec 2.0 architec-         are assumed to capture the relevant phonetic information.
+ture [6], with a convolutional waveform encoder, a BERT             Training of these models amounts to likelihood maximization.
+encoder [19], a projection layer and a code embedding layer.        Different latent structures have been applied to encode the
+                                                                                                                                               4
+
+
+
+prior assumption, such as continuous [29], discrete [31], [42],       B. Unsupervised Unit Discovery
+or sequential [28], [30], [32], [33], [43].                              To demonstrate the effectiveness of the proposed method
+   Prediction-based self-supervised learning has gathered in-         on utilizing low-quality cluster assignments, we consider the
+creasing interests recently, where a model is tasked to predict       k-means algorithm [55] for acoustic unit discovery by default.
+the content of the unseen regions [4], [44]–[50] or to contrast       It is one of the most naive unit discovery models that can be
+the target unseen frame with randomly sampled ones [1]–               treated as modeling an isotropic Gaussian with the same scalar
+[3], [6]. Some models combine both the predictive and the             variance for each acoustic unit. To generate labels for the
+contrastive losses [5], [51]. These objectives can usually be         first iteration HuBERT training over the 960 hour LibriSpeech
+interpreted as mutual information maximization [52]. Other            training set, we run k-means clustering with 100 clusters on
+objectives do not belong to these categories, for example, [53].      39-dimensional MFCC features, which are 13 coefficients with
+   This work is most related to DiscreteBERT [51]: both               the first and the second-order derivatives.
+HuBERT and DiscreteBERT predict discrete targets of masked               To generate better targets for the subsequent iterations, we
+regions. However, there are several crucial differences. First,       run k-means clustering with 500 clusters on the latent features
+instead of taking quantized units as input, HuBERT takes raw          extracted from the HuBERT model pre-trained in the previous
+waveforms as input to pass as much information as possible            iteration (not fine-tuned) at some intermediate transformer
+to the transformer layers, which was shown to be important            layer. Since the feature dimension at the transformer output
+in [6]. Furthermore, in the experiment section, we show that          is much higher than the MFCC features (768-D for HuBERT
+our model, with simple k-means targets, can achieve better            BASE), we cannot afford to load the entire 960 hour training
+performance than DiscreteBERT that uses vq-wav2vec [5]                split to the memory. So instead, we randomly sample 10% of
+learned units. Second, we also present many techniques to             the data for fitting the k-means model.
+improve teacher quality instead of using a single fixed teacher          The MiniBatchKMeans algorithm implemented in the
+as done in DiscreteBERT.                                              scikit-learn [56] package is used for clustering, which
+   HuBERT is also related to wav2vec 2.0 [6]. However, the            fits a mini-batch of samples at a time.2 We set the mini-batch
+latter employs a contrastive loss that requires careful design of     size to be 10,000 frames. k-means++ [57] with 20 random
+where to sample negative frames from, an auxiliary diversity          starts is used for better initialization.
+loss to encourage the discrete unit usage, and demands a
+proper Gumbel-softmax temperature annealing schedule. In              C. Pre-Training
+addition, it only explores quantizing the waveform encoder
+                                                                         We train the BASE model for two iterations on the 960
+output, which may not be the best feature for quantization
+                                                                      hours of LibriSpeech audio on 32 GPUs, with a batch size
+due to the limited capacity of the convolutional encoder, as
+                                                                      of at most 87.5 seconds of audio per GPU. The first iteration
+suggested by our ablation studies in Figure 2. Concretely,
+                                                                      is trained for 250k steps, while the second iteration is trained
+our proposed method adopts a more direct predictive loss by
+                                                                      for 400k steps using labels generated by clustering the 6-th
+separating the acoustic unit discovery step from the masked
+                                                                      transformer layer output of the first iteration model. Training
+prediction representation learning phase and achieves the state-
+                                                                      for 100k steps takes about 9.5 hours.
+of-the-art results that match or outperform wav2vec 2.0 on               Next we train HuBERT L ARGE and X-L ARGE for one
+different fine-tuning scales.                                         iteration on 60,000 hours of Libri-light audio on 128 and
+   Finally, the idea of iterative refinement target labels is simi-
+                                                                      256 GPUs, respectively, for 400k steps. The batch sizes are
+lar to iterative pseudo labeling for semi-supervised ASR [12],
+                                                                      reduced to 56.25 and 22.5 seconds of audio per GPU due to
+[54], which leverages an improving student model to generate
+                                                                      memory constraints. Instead of restarting the iterative process
+better pseudo-labels for the next iteration of training. The
+                                                                      from clustering MFCC features, we extract features from the 9-
+HuBERT approach can be seen as extending this method to
+                                                                      th transformer layer of the second iteration BASE HuBERT for
+the self-supervised setup with a masked prediction loss.
+                                                                      clustering and use those labels for training these two models.
+                 IV. E XPERIMENTAL D ETAILS                           Hence, these two models can also be seen as the third iteration
+                                                                      models.
+A. Data
+                                                                         For all HuBERT configurations, mask span is set to l =
+   For unsupervised pre-training, we use the full 960                 10, and p = 8% of the waveform encoder output frames are
+hours of LibriSpeech audio [24] or 60,000 hours of                    randomly selected as mask start if not otherwise mentioned.
+Libri-light [25] audio, both of which are derived from                Adam [58] optimizer is used with β = (0.9, 0.98), and the
+the LibriVox project that contains English recordings of              learning rate ramps up linearly from 0 to the peak learning
+copyright-free audiobooks by volunteers from the In-                  rate for the first 8% of the training steps, and then decays
+ternet. For supervised fine-tuning, five different parti-             linearly back to zero. The peak learning rates are 5e-4/1.5e-
+tions are considered: Libri-light 10-minute, 1-hour, 10-              3/3e-3 for BASE/L ARGE/X-L ARGE models.
+hour splits and LibriSpeech 100-hour (train-clean-100)
+and 960-hour (train-clean-100, train-clean-360,                       D. Supervised Fine-Tuning and Decoding
+train-other-500 combined) splits. The three Libri-light
+                                                                        We fine-tune each model on 8 GPUs on the labeled splits
+splits are subsets of the the LibriSpeech training split, and each
+                                                                      described in Section IV-A. The batch sizes per GPU are at
+of them contain half of the audio from train-clean-* and
+the other from train-other-500.                                          2 It still requires loading the entire dataset to the memory first.
+                                                                                                                                            5
+
+
+
+most 200/80/40 seconds of audio for BASE/L ARGE/X-L ARGE                          most likely phone label. When comparing different sets
+models. During fine-tuning, the convolutional waveform audio                      of target labels with the same number of units, higher
+encoder parameters are fixed. Like wav2vec 2.0, we introduce                      purity indicates better quality. However, this metric is
+a freeze-step hyperparameter to control how many fine-tuning                      less meaningful when comparing two sets with different
+steps the transformer parameters are fixed, and only the new                      numbers of units: in the extreme case where each frame
+softmax matrix is trained. We sweep over peak learning rate                       is assigned a unique target label, the phone purity would
+([1e-5, 1e-4]), learning rate schedule (percentage of steps                       be 100%.
+for linear ramp-up and decay), number of fine-tuning steps,                    2) cluster purity (Cls Pur.):
+freeze step, and waveform encoder output masking probability
+for each model size and fine-tuning split combination using                                         Epy (i) [pz|y (z ∗ (i) | i)],         (9)
+the word error rate (WER) on the dev-other subset as a                            where pz|y (j | i) = pyz (i, j)/py (i) denotes the condi-
+criterion for model selection.                                                    tional probability of a k-means label given phone label.
+   We use the wav2letter++ [59] beam search decoder wrapped                       Cluster purity is the counterpart of phone purity, whose
+in Fairseq [60] for language model-fused decoding, which                          value would typically decrease when the number of units
+optimizes:                                                                        increases. When comparing target labels with the same
+         log pCT C (Y | X) + w1 log PLM (Y ) + w2 |Y |,                (4)        number of units, higher cluster purity also indicates a
+                                                                                  better quality, as frames of the same phone are more likely
+where Y is the predicted text, |Y | is the length of the text,                    labeled as the same k-means label class.
+and w1 and w2 denote the language model weight and word                        3) phone-normalized mutual information (PNMI):
+score. The decoding hyperparameters are searched with Ax,
+a Bayesian optimization toolkit,3 . In this work, we consider
+                                                                                                   P P                 pyz (i, j)
+                                                                                                     i     j pyz (i, j) log
+both n-gram and transformer language models trained on the                              I(y; z)                       py (i)pz (j)
+                                                                                                =      P                                (10)
+official Librispeech language modeling data.                                             H(y)              p
+                                                                                                         i y (i) log py (i)
+                                                                                                  H(y) − H(y | z)
+                                                                                                =                                       (11)
+E. Metrics of Target Quality                                                                           H(y)
+   For analysis, we derive frame-level forced-aligned phonetic                                       H(y | z)
+                                                                                                =1−           .                         (12)
+transcripts using a hybrid ASR system to measure the corre-                                            H(y)
+lation between the k-means cluster assignments and the ac-                        PNMI is an information-theoretic metric that measures
+tual phonetic units. Given aligned frame-level phonetic labels                    the percentage of uncertainty about the phone label y
+[y1 , · · · , yT ] and k-means labels [z1 , · · · , zT ], the joint distri-       eliminated after observing the k-means label z. Higher
+bution between the two variables pyz (i, j) can be estimated                      PNMI also indicates better k-means clustering quality.
+by counting the occurrences:
+                               PT
+                                    [yt = i ∧ zt = j]                                                    V. R ESULTS
+                   pyz (i, j) = t=1                        ,           (5)
+                                         T                                    A. Main Results: Low- and High-Resource Setups
+where i denotes the i-th phoneme class and j denotes the j-th
+                                                                                 Table II presents results for the low-resource setup, where
+k-means label    P class. The marginal probabilities        are computed
+                                             P                                pre-trained models are fine-tuned on 10 minutes, 1 hour, 10
+as pz (j) = i pyz (i, j) and py (j) = j pyz (i, j).
+                                                                              hours, or 100 hours of labeled data. We include comparison
+   For each phone class i, we further compute the most likely
+                                                                              with semi-supervised (iterative pseudo labeling (IPL) [12],
+target label as:
+                                                                              slimIPL [54], noisy student [61]) and self-supervised ap-
+                     z ∗ (i) = arg max pyz (i, j).                     (6)    proaches (DeCoAR 2.0 [50], DiscreteBERT [51], wav2vec
+                                       j
+                                                                              2.0 [6]) in the literature. Increasing the amount of unlabeled
+Likewise, for each k-means class j, we compute the most                       data and increasing the model size improve performance,
+likely phone label as:                                                        demonstrating the scalability of the proposed HuBERT self-
+                     y ∗ (j) = arg max pyz (i, j).                     (7)    supervised pre-training method. In the ultra-low resource setup
+                                       i                                      with just 10 minutes of labeled data, the HuBERT L ARGE
+Three metrics are considered:                                                 model can achieve a WER of 4.7% on the test-clean set
+ 1) phone purity (Phn Pur.):                                                  and 7.6% on the test-other set, which is 0.1% and 0.6%
+                                                                              WER lower, respectively than the state-of-the-art wav2vec 2.0
+                          Epz (j) [py|z (y ∗ (j) | j)],                (8)    L ARGE model. By further scaling up the model size to 1B
+     where py|z (i | j) = pyz (i, j)/pz (j) denotes the condi-                parameters, the HuBERT X-L ARGE model can further reduce
+     tional probability of phone given a k-means label. This                  the WER to 4.6% and 6.8% on test-clean and test-other. The
+     metric measures the average phone purity within one                      superiority of HuBERT persists across setups with different
+     class, which can be interpreted as the frame-level phone                 amounts of labeled data, with the only exceptions being fine-
+     accuracy if we transcribe each k-means class with its                    tuning on 100 hours of labeled data, where HuBERT L ARGE
+                                                                              is 0.1% WER higher than wav2vec 2.0 L ARGE on test-clean,
+    3 https://github.com/facebook/Ax                                          and HuBERT BASE is 0.1% WER higher than wav2vec 2.0
+                                                                                                                                       6
+
+
+
+              Model                    Unlabeled Data           LM              dev-clean   dev-other   test-clean   test-other
+
+                                                             10-min labeled
+              DiscreteBERT [51]           LS-960              4-gram              15.7        24.1        16.3         25.2
+              wav2vec 2.0 BASE [6]        LS-960              4-gram              8.9         15.7        9.1          15.6
+              wav2vec 2.0 L ARGE [6]      LL-60k              4-gram              6.3         9.8         6.6          10.3
+              wav2vec 2.0 L ARGE [6]      LL-60k            Transformer           4.6         7.9         4.8           8.2
+              HUBERT BASE                 LS-960              4-gram               9.1        15.0         9.7         15.3
+              HUBERT L ARGE               LL-60k              4-gram               6.1         9.4         6.6         10.1
+              HUBERT L ARGE               LL-60k            Transformer            4.3         7.0         4.7          7.6
+              HUBERT X-L ARGE             LL-60k            Transformer            4.4         6.1         4.6          6.8
+
+                                                             1-hour labeled
+              DeCoAR 2.0 [50]             LS-960               4-gram               -          -          13.8         29.1
+              DiscreteBERT [51]           LS-960               4-gram              8.5        16.4        9.0          17.6
+              wav2vec 2.0 BASE [6]        LS-960               4-gram              5.0        10.8        5.5          11.3
+              wav2vec 2.0 L ARGE [6]      LL-60k            Transformer            2.9        5.4         2.9          5.8
+              HUBERT BASE                 LS-960              4-gram               5.6        10.9         6.1         11.3
+              HUBERT L ARGE               LL-60k            Transformer            2.6         4.9         2.9          5.4
+              HUBERT X-L ARGE             LL-60k            Transformer            2.6         4.2         2.8          4.8
+
+                                                             10-hour labeled
+              SlimIPL [54]                LS-960        4-gram + Transformer       5.3         7.9         5.5          9.0
+              DeCoAR 2.0 [50]             LS-960               4-gram               -           -          5.4         13.3
+              DiscreteBERT [51]           LS-960               4-gram              5.3        13.2         5.9         14.1
+              wav2vec 2.0 BASE [6]        LS-960               4-gram              3.8        9.1          4.3         9.5
+              wav2vec 2.0 L ARGE [6]      LL-60k             Transformer           2.4        4.8          2.6         4.9
+              HUBERT BASE                 LS-960              4-gram               3.9         9.0         4.3          9.4
+              HUBERT L ARGE               LL-60k            Transformer            2.2         4.3         2.4          4.6
+              HUBERT X-L ARGE             LL-60k            Transformer            2.1         3.6         2.3          4.0
+
+                                                             100-hour labeled
+              IPL [12]                    LL-60k        4-gram + Transformer      3.19        6.14        3.72         7.11
+              SlimIPL [54]                LS-860        4-gram + Transformer       2.2         4.6         2.7          5.2
+              Noisy Student [61]          LS-860                LSTM               3.9         8.8         4.2          8.6
+              DeCoAR 2.0 [50]             LS-960               4-gram               -           -          5.0         12.1
+              DiscreteBERT [51]           LS-960               4-gram              4.0        10.9         4.5         12.1
+              wav2vec 2.0 BASE [6]        LS-960               4-gram             2.7         7.9         3.4          8.0
+              wav2vec 2.0 L ARGE [6]      LL-60k             Transformer          1.9         4.0         2.0          4.0
+              HUBERT BASE                 LS-960              4-gram               2.7         7.8         3.4          8.1
+              HUBERT L ARGE               LL-60k            Transformer            1.8         3.7         2.1          3.9
+              HUBERT X-L ARGE             LL-60k            Transformer            1.7         3.0         1.9          3.5
+
+TABLE II: Results and comparison with the literature on low resource setups (10-min, 1-hour, 10-hour, and 100-hour of labeled
+data).
+
+
+BASE on test-other. In addition, HuBERT also outperforms                    model, and then fine-tune the model on labeled data with
+DiscreteBERT by a large margin in all setups, while both are                a supervised training objective.
+trained with a virtually identical objective - masked predic-           3) pre-training + self-training: first pre-train and fine-tune a
+tion of discovered units. The considerable performance gap                  model, and then use it to annotate unlabeled speech for
+suggests two things. First, using waveform as the input to                  self-training combined with supervised data.
+the model is crucial for avoiding loss of information during          HuBERT outperforms the state-of-the-art supervised and self-
+quantization. Second, while vq-wav2vec [5], the units that            training methods and is on par with the two best pre-training
+DiscreteBERT uses for training, may discover better units than        results in the literature; both are based on wav2vec 2.0 con-
+k-means clustering of MFCC features, the proposed iterative           trastive learning. In contrast, it lags behind methods combining
+refinement benefits from the improving HuBERT model and               pre-training with self-training. However, as observed in [63]
+learn better units eventually. We will verify these statements        and [40], we expect that HuBERT can achieve comparable or
+in the ablation study sections.                                       better performance after combining with self-training, since
+   We report results of fine-tuning HuBERT models on the full         the pre-trained HuBERT model is on par or better than the
+960 hours of Librispeech data and compare with the literature         pre-trained model those two methods use for pseudo labeling.
+in Table III. Prior studies using additional unpaired speech are
+classified into:                                                      B. Analysis: K-Means Stability
+ 1) self-training: first train an ASR on labeled data to anno-           To better understand why masked prediction of discovered
+    tate unlabeled speech, and then combine both golden and           units is effective, we conduct a series of analyses and ablation
+    ASR-annotated text-speech pairs for supervised training.          studies. We start with probing the stability of the k-means clus-
+ 2) pre-training: first use unlabeled speech for pre-training a       tering algorithm concerning different numbers of clusters and
+                                                                                                                                                                                  7
+
+
+
+    Model                                                Unlabeled Data                      LM                 dev-clean         dev-other       test-clean         test-other
+
+                                                                      Superivsed
+    Conformer L [62]                                           -                   LSTM                              -                -                 1.9              3.9
+
+                                                                     Self-Training
+    IPL [12]                                                LL-60k         4-gram + Transformer                    1.85             3.26                2.10            4.01
+    Noisy Student [61]                                      LV-60k                 LSTM                             1.6              3.4                 1.7             3.4
+
+                                                                     Pre-Training
+    wav2vec 2.0 L ARGE [6]                                  LL-60k             Transformer                          1.6              3.0                1.8              3.3
+    pre-trained Conformer XXL [40]                          LL-60k                LSTM                              1.5              3.0                1.5              3.1
+
+                                                            Pre-Training + Self-Training
+    wav2vec 2.0 + self-training [63]                        LL-60k            Transformer                           1.1              2.7                1.5              3.1
+    pre-trained Conformer XXL + Noisy Student [40]          LL-60k               LSTM                               1.3              2.6                1.4              2.6
+
+                                                              This work (Pre-Training)
+    HUBERT L ARGE                                           LL-60k            Transformer                           1.5              3.0                1.9              3.3
+    HUBERT X-L ARGE                                         LL-60k            Transformer                           1.5              2.5                1.8              2.9
+
+    TABLE III: Comparison with the literature on high resource setups using all 960 hours of labeled LibriSpeech data.
+
+
+different sizes of its training data. Two features are considered:                                      0.4
+39-dimensional MFCC features and 768-dimensional output                                                         C=100, BASE-it1       C=500, BASE-it1          C=1000, BASE-it1
+
+
+
+
+                                                                                   Cluster Purity (%)
+                                                                                                                C=100, BASE-it2       C=500, BASE-it2          C=1000, BASE-it2
+from the 6-th transformer layer of the first iteration HuBERT-                                          0.3
+BASE model. These two features are used to produce cluster
+assignments for the first and the second iteration HUBERT                                               0.2
+training, respectively.
+    For k-means clustering, we consider K = {100, 500}                                                  0.1
+clusters fitted on {1, 10, 100} hours of speech sampled
+from the LibriSpeech training split. Each combination of the                                             0
+hyperparameters and the features are trained for 10 trials,                                                   0 1 2 3 4 5 6 7 8 9 10 11 12
+                                                                                     Phone Purity (%)
+
+
+
+
+and the mean and standard deviation of the supervised PNMI                                              0.7
+metric on the development set (combining dev-clean and dev-
+other from LibriSpeech) is reported in Table IV. The results                                            0.6
+show that the k-means clustering is reasonably stable given the                                         0.5
+small standard deviations across different hyperparameters and
+                                                                                                        0.4
+features. Furthermore, increasing the amount of data used for
+fitting k-means models improves PNMI in general, but the gain                                                 0 1 2 3 4 5 6 7 8 9 10 11 12
+is only as much as 0.012, suggesting the feasibility of using                                           0.7
+                                                                                     PNMI (%)
+
+
+
+
+k-means for unit discovery even with limited CPU memory
+                                                                                                        0.6
+relative to the feature matrix size. Lastly, the PNMI score
+is much higher when clustering on HuBERT features than                                                  0.5
+clustering on MFCC features, and the gap is even larger with                                            0.4
+500 clusters, indicating that iterative refinement significantly
+improves the clustering quality.                                                                              0 1 2 3 4 5 6 7 8 9 10 11 12
+                                                                                                                                     Layer
+                         PNMI (mean ± std) with K-means Training Size =
+    feature      C                                                          Fig. 2: Quality of the cluster assignments obtained by running
+                             1h              10h              100h
+                                                                            k-means clustering on features extracted from each transformer
+                100      0.251 ± 0.001   0.253 ± 0.001    0.253 ± 0.001
+    MFCC                                                                    layer of the first and the second iteration BASE HuBERT
+                500      0.283 ± 0.001   0.285 ± 0.000    0.287 ± 0.001
+                100      0.563 ± 0.012   0.561 ± 0.012    0.575 ± 0.008     models.
+  BASE-it1-L6
+                500      0.680 ± 0.005   0.684 ± 0.003    0.686 ± 0.004
+
+TABLE IV: Stability of K-means as an unsupervised unit
+discovery algorithm with respect to different features, numbers             training targets. The two BASE HuBERT models from the first
+of clusters, and training data sizes. PNMI stands for phone-                two iterations as described in Section IV-C are considered,
+normalized mutual information.                                              which are referred to as BASE-it1 and BASE-it2, respectively.
+                                                                            There are 26 features representing 12 transformer layers plus
+                                                                            the input to the first transformer layer (denoted as “Layer 0”)
+C. Analysis: Clustering Quality Across Layers and Iterations                from the two HuBERT models. For each feature, we fit three k-
+  We next study how each layer of the HuBERT model from                     means models (K = {100, 500, 1000} clusters) on a 100 hour
+each iteration performs when used for clustering to generate                subset randomly sampled from the LibriSpeech training data.
+                                                                                                                                        8
+
+
+
+                                                            dev-other WER (%)
+                   teacher               C     PNMI                                               teacher                       WER
+                                                       α = 1.0 α = 0.5 α = 0.0
+
+        Chenone (supervised top-line)   8976   0.809    10.38      9.16      9.79                 K-means {50,100}              17.81
+                                                                                                  K-means {50,100,500}          17.56
+                                        50     0.227    18.68   31.07       94.60
+             K-means on MFCC            100    0.243    17.86   29.57       96.37                 Product K-means-0-100         19.26
+                                        500    0.276    18.40   33.42       97.66                 Product K-means-1-100         17.64
+                                                                                                  Product K-means-2-100         18.46
+         K-means on BASE-it1-layer6     500    0.637    11.91   13.47       23.29                 Product K-means-{0,1,2}-100   16.73
+         K-means on BASE-it2-layer9     500    0.704    10.75   11.59       13.79
+                                                                                                TABLE VI: Cluster ensembles with
+TABLE V: The effect of the training objective and clustering quality on performance.            k-means and product k-means.
+C refers to the number of units, and α is the weight for masked frames.
+
+
+The teacher quality measured in cluster purity, phone purity,         it1-layer6) or even achieve better performance as the case of
+and phone normalized mutual information (PNMI) is shown               chenone.
+in Figure 2. As a baseline, MFCC achieves (cluster purity,
+phone purity, PNMI) = (0.099, 0.335, 0.255) for K = 100               E. Ablation: The Effect of Cluster Ensembles
+and (0.031, 0.356, 0.287) for K = 500.                                   To understand the effect of combining multiple k-means
+   Both BASE-it1 and BASE-it2 features result in significantly        models for generating targets, we consider two setups. The
+better clustering quality on all three metrics than MFCC with         first one has k-means models of different numbers of clusters
+the same number of clusters. On the other hand, the best              presented in Table V, denoted with KM-{50,100,500}. The
+BASE-it2 feature is better than the best BASE-it1 on phone            second one has k-means models trained on spliced MFCC
+purity and PNMI, but slightly worse on cluster purity. Finally,       features with a window of three; hence, each input feature
+we observe different trends across layers from BASE-it1 and           is represented as a 117-dimensional vector. In this second
+BASE-it2: while BASE-it2 model features generally improve             case, we apply product quantization on the spliced features,
+over layers, BASE-it1 has the best features in the middle             where dimensions are split into the coefficients of the zeroth,
+layers around the 6th layer. Interestingly, the quality of the        first, and second-order derivatives, with each 39-dimensional
+last few layers degrades dramatically for BASE-it1, potentially       subspace quantized to a codebook of 100 entries. We denote
+because it is trained on target assignments of worse quality,         these codebooks with Product k-means-{0,1,2}-100, respec-
+and therefore the last few layers learn to mimic their bad label      tively. By comparing the results from Table V and Table VI,
+behavior.                                                             it is clear that using an ensemble leads to better performance
+                                                                      than what a single k-means clustering can achieve.
+D. Ablation: The Importance of Predicting Masked Frames
+   We present a series of ablation studies in the following           F. Ablation: Impact of Hyperparameters
+sections to learn how pre-training objective, cluster quality,           Figure 3 and Table VII studies how hyperparameters affect
+and hyperparameters affect the performance. The models for            HuBERT pre-training. It is shown that (1) the portion of frames
+ablation studies are pre-trained for 100k steps and fine-tuned        selected as mask start is optimal at p =8%; (2) increasing
+on the 10-hour libri-light split using fixed hyperaprameters.         the batch size can significantly improve the performance;
+MFCC-based k-means units with C=100 are used if not                   (3) training for longer consistently helps for both k-means
+otherwise mentioned. We report WERs on the dev-other set              models with C={50, 100}, and the best model achieves a WER
+decoded with the n-gram language model using fixed decoding           of 11.68%. These findings are also consistent with those from
+hyperparameters.                                                      BERT-like models [20]. In addition, we include a comparable
+   To understand the importance of our proposal to predict the        result from DiscreteBERT [51] in Table VII which applies k-
+masked frames only, we compare three conditions: 1) predict-          means to quantize the same MFCC features into 13.5k units,
+ing masked frames, 2) predicting all frames, and 3) predicting        used as both the output and the input to the BERT model.
+unmasked frames, which can be simulated by setting α to 1.0,          Besides using continuous speech input rather than discrete
+0.5, and 0.0, respectively. We are comparing three k-means            units, We hypothesize that HuBERT achieves significantly
+models learned from clustering MFCC teachers with 50, 100,            better performance because its fewer k-means clusters of 100
+500 clusters, one learned from clustering HuBERT-BASE-it1             or 500 help capture broad phonetic concepts without delving
+6th transformer layer features, and supervised labels obtained        into inter/intra-speaker variation.
+from the forced-alignment of character-based HMM models
+(chenone) [64].                                                                            VI. C ONCLUSION
+   Results shown in Table V indicate that when learning from             This paper presents HuBERT, a speech representation learn-
+bad cluster assignments, computing loss only from the masked          ing approach that relies on predicting K-means cluster assign-
+regions achieves the best performance, while the inclusion of         ments of masked segments of continuous input. On both the
+unmasked loss results in significantly higher WERs. However,          Librispeech 960 hours and the 60,000 hours Libri-light pre-
+as the clustering quality improves, the model would suffer            training setups, HuBERT matches or outperforms the state-
+less when computing losses on the unmasked frames (BASE-              of-the-art systems over all fine-tuning subsets of 10mins, 1h,
+                                                                                                                                                                           9
+
+
+
+                                              dev-other WER (%)                              [14] X. Chen and K. He, “Exploring simple siamese representation learning,”
+             teacher           C
+                                      steps=100k    250k   400k                 800k              CoRR, vol. abs/2011.10566, 2020.
+                           50            18.68             13.65        12.40   11.82        [15] J. Grill, F. Strub, F. Altché, C. Tallec, P. H. Richemond, E. Buchatskaya,
+             K-means                                                                              C. Doersch, B. Á. Pires, Z. D. Guo, M. G. Azar, B. Piot,
+                           100           17.86             12.97        12.32   11.68
+                                                                                                  K. Kavukcuoglu, R. Munos, and M. Valko, “Bootstrap your own
+                  [51]    13.5k                              26.6                                 latent: A new approach to self-supervised learning,” CoRR, vol.
+                                                                                                  abs/2006.07733, 2020.
+TABLE VII: Varying the number of HuBERT pre-training                                         [16] T. B. Brown, B. Mann, N. Ryder, M. Subbiah, J. Kaplan, P. Dhariwal,
+steps. p is set to 6.5%.                                                                          A. Neelakantan, P. Shyam, G. Sastry, A. Askell, S. Agarwal, A. Herbert-
+                                                                                                  Voss, G. Krueger, T. Henighan, R. Child, A. Ramesh, D. M. Ziegler,
+                                                                                                  J. Wu, C. Winter, C. Hesse, M. Chen, E. Sigler, M. Litwin, S. Gray,
+                                                                                                  B. Chess, J. Clark, C. Berner, S. McCandlish, A. Radford, I. Sutskever,
+
+
+                                                 WER (%)
+   WER (%)
+
+
+
+
+             24                                             40
+             22                                                                                   and D. Amodei, “Language models are few-shot learners,” CoRR, vol.
+                                                            30
+             20                                                                                   abs/2005.14165, 2020.
+             18                                             20                               [17] Y. Liu, M. Ott, N. Goyal, J. Du, M. Joshi, D. Chen, O. Levy, M. Lewis,
+             16
+                    2    4.5       6.5 8 9                          8      16           32        L. Zettlemoyer, and V. Stoyanov, “Roberta: A robustly optimized bert
+                               p                                           #GPUs                  pretraining approach,” arXiv preprint arXiv:1907.11692, 2019.
+                                                                                             [18] M. Lewis, Y. Liu, N. Goyal, M. Ghazvininejad, A. Mohamed, O. Levy,
+Fig. 3: Varying masking probability p (left) and effective batch                                  V. Stoyanov, and L. Zettlemoyer, “Bart: Denoising sequence-to-sequence
+                                                                                                  pre-training for natural language generation, translation, and comprehen-
+size through the number of GPUs (right).                                                          sion,” arXiv preprint arXiv:1910.13461, 2019.
+                                                                                             [19] J. Devlin, M.-W. Chang, K. Lee, and K. Toutanova, “Bert: Pre-training
+                                                                                                  of deep bidirectional transformers for language understanding,” arXiv
+10h, 100h, and 960h. Furthermore, the learned representation                                      preprint arXiv:1810.04805, 2018.
+                                                                                             [20] K. Clark, M.-T. Luong, Q. V. Le, and C. D. Manning, “Electra: Pre-
+quality improves dramatically with iteratively refining K-                                        training text encoders as discriminators rather than generators,” arXiv
+means cluster assignments using learned latent representations                                    preprint arXiv:2003.10555, 2020.
+for a previous iteration. Finally, HuBERT scales well to a                                   [21] M. E. Peters, M. Neumann, M. Iyyer, M. Gardner, C. Clark, K. Lee, and
+                                                                                                  L. Zettlemoyer, “Deep contextualized word representations,” in NAACL,
+1B transformer model showing a relative reduction in WER                                          2018.
+of up to 13% on the test-other subset. For future work, we                                   [22] K. He, H. Fan, Y. Wu, S. Xie, and R. Girshick, “Momentum contrast
+plan to improve the HuBERT training procedure to consist                                          for unsupervised visual representation learning,” in CVPR, 2020.
+of a single phase. Furthermore, given the high quality of                                    [23] M. Caron, P. Bojanowski, A. Joulin, and M. Douze, “Deep clustering
+                                                                                                  for unsupervised learning of visual features,” in ECCV, 2018.
+its representations, we will consider using HuBERT pre-                                      [24] V. Panayotov, G. Chen, D. Povey, and S. Khudanpur, “Librispeech: an
+trained representations for multiple downstream recognition                                       asr corpus based on public domain audio books,” in ICASSP, 2015.
+and generation tasks beyond ASR.                                                             [25] J. Kahn et al., “Libri-light: A benchmark for asr with limited or no
+                                                                                                  supervision,” in ICASSP, 2020.
+                                                                                             [26] C.-y. Lee and J. Glass, “A nonparametric bayesian approach to acoustic
+                                       R EFERENCES                                                model discovery,” in ACL, 2012.
+                                                                                             [27] L. Ondel, L. Burget, and J. Černockỳ, “Variational inference for acoustic
+ [1] A. v. d. Oord, Y. Li, and O. Vinyals, “Representation learning with
+                                                                                                  unit discovery,” Procedia Computer Science, vol. 81, pp. 80–86, 2016.
+     contrastive predictive coding,” arXiv preprint arXiv:1807.03748, 2018.
+ [2] S. Schneider, A. Baevski, R. Collobert, and M. Auli, “wav2vec:                          [28] J. Ebbers, J. Heymann, L. Drude, T. Glarner, R. Haeb-Umbach, and
+     Unsupervised pre-training for speech recognition,” arXiv preprint                            B. Raj, “Hidden markov model variational autoencoder for acoustic unit
+     arXiv:1904.05862, 2019.                                                                      discovery.” in INTERSPEECH, 2017.
+ [3] E. Kharitonov, M. Rivière, G. Synnaeve, L. Wolf, P.-E. Mazaré,                        [29] W.-N. Hsu, Y. Zhang, and J. Glass, “Learning latent representations for
+     M. Douze, and E. Dupoux, “Data augmenting contrastive learn-                                 speech generation and transformation,” in INTERSPEECH, 2017.
+     ing of speech representations in the time domain,” arXiv preprint                       [30] ——, “Unsupervised learning of disentangled and interpretable repre-
+     arXiv:2007.00991, 2020.                                                                      sentations from sequential data,” in NeurIPS, 2017.
+ [4] Y.-A. Chung, W.-N. Hsu, H. Tang, and J. Glass, “An unsupervised                         [31] J. Chorowski, R. J. Weiss, S. Bengio, and A. van den Oord, “Unsu-
+     autoregressive model for speech representation learning,” arXiv preprint                     pervised speech representation learning using wavenet autoencoders,”
+     arXiv:1904.03240, 2019.                                                                      IEEE/ACM transactions on audio, speech, and language processing,
+ [5] A. Baevski, S. Schneider, and M. Auli, “vq-wav2vec: Self-                                    vol. 27, no. 12, pp. 2041–2053, 2019.
+     supervised learning of discrete speech representations,” arXiv preprint                 [32] S. Khurana, S. R. Joty, A. Ali, and J. Glass, “A factorial deep
+     arXiv:1910.05453, 2019.                                                                      markov model for unsupervised disentangled representation learning
+ [6] A. Baevski, H. Zhou, A. Mohamed, and M. Auli, “wav2vec 2.0: A                                from speech,” in ICASSP, 2019.
+     framework for self-supervised learning of speech representations,” arXiv                [33] S. Khurana, A. Laurent, W.-N. Hsu, J. Chorowski, A. Lancucki,
+     preprint arXiv:2006.11477, 2020.                                                             R. Marxer, and J. Glass, “A convolutional deep markov model
+ [7] G. Zavaliagkos and T. Colthurst, “Utilizing untranscribed training data                      for unsupervised speech representation learning,” arXiv preprint
+     to improve performance,” in DARPA Broadcast News Transcription and                           arXiv:2006.02547, 2020.
+     Understanding Workshop, 1998.                                                           [34] M. Joshi, D. Chen, Y. Liu, D. S. Weld, L. Zettlemoyer, and O. Levy,
+ [8] J. Ma, S. Matsoukas, O. Kimball, and R. Schwartz, “Unsupervised                              “Spanbert: Improving pre-training by representing and predicting spans,”
+     training on large amounts of broadcast news data,” in ICASSP, 2006.                          Transactions of the Association for Computational Linguistics, 2020.
+ [9] J. Kahn, A. Lee, and A. Hannun, “Self-training for end-to-end speech                    [35] S. Young, “Large vocabulary continuous speech recognition: A review,”
+     recognition,” in ICASSP, 2020.                                                               IEEE Signal Processing Magazine, vol. 13, no. 5, pp. 45–57, 1996.
+[10] W.-N. Hsu, A. Lee, G. Synnaeve, and A. Hannun, “Semi-                                   [36] O. Abdel-Hamid, A.-r. Mohamed, H. Jiang, and G. Penn, “Applying
+     supervised speech recognition via local prior matching,” arXiv preprint                      convolutional neural networks concepts to hybrid nn-hmm model for
+     arXiv:2002.10336, 2020.                                                                      speech recognition,” in 2012 IEEE international conference on Acous-
+[11] A. Xiao, C. Fuegen, and A. Mohamed, “Contrastive semi-supervised                             tics, speech and signal processing (ICASSP). IEEE, 2012, pp. 4277–
+     learning for asr,” arXiv preprint arXiv:2103.05149, 2021.                                    4280.
+[12] Q. Xu, T. Likhomanenko, J. Kahn, A. Hannun, G. Synnaeve, and                            [37] D. Povey, “Discriminative training for large vocabulary speech recogni-
+     R. Collobert, “Iterative pseudo-labeling for speech recognition,” arXiv                      tion,” Ph.D. dissertation, University of Cambridge, 2005.
+     preprint arXiv:2005.09267, 2020.                                                        [38] H. A. Bourlard and N. Morgan, Connectionist speech recognition: a
+[13] M. Caron, I. Misra, J. Mairal, P. Goyal, P. Bojanowski, and A. Joulin,                       hybrid approach. Springer Science & Business Media, 2012, vol. 247.
+     “Unsupervised learning of visual features by contrasting cluster assign-                [39] R. M. Gray and D. L. Neuhoff, “Quantization,” IEEE transactions on
+     ments,” CoRR, vol. abs/2006.09882, 2020.                                                     information theory, vol. 44, no. 6, pp. 2325–2383, 1998.
+                                                                                   10
+
+
+
+[40] Y. Zhang, J. Qin, D. S. Park, W. Han, C.-C. Chiu, R. Pang, Q. V. Le,
+     and Y. Wu, “Pushing the limits of semi-supervised learning for automatic
+     speech recognition,” arXiv preprint arXiv:2010.10504, 2020.
+[41] A. Graves, S. Fernández, F. Gomez, and J. Schmidhuber, “Connection-
+     ist temporal classification: labelling unsegmented sequence data with
+     recurrent neural networks,” in ICML, 2006.
+[42] A. van den Oord, O. Vinyals et al., “Neural discrete representation
+     learning,” in NeurIPS, 2017.
+[43] T. Glarner, P. Hanebrink, J. Ebbers, and R. Haeb-Umbach, “Full bayesian
+     hidden markov model variational autoencoder for acoustic unit discov-
+     ery.” in INTERSPEECH, 2018.
+[44] Y.-A. Chung and J. Glass, “Generative pre-training for speech with
+     autoregressive predictive coding,” in ICASSP, 2020.
+[45] ——, “Improved speech representations with multi-target autoregressive
+     predictive coding,” arXiv preprint arXiv:2004.05274, 2020.
+[46] S. Ling, Y. Liu, J. Salazar, and K. Kirchhoff, “Deep contextualized
+     acoustic representations for semi-supervised speech recognition,” in
+     ICASSP, 2020.
+[47] W. Wang, Q. Tang, and K. Livescu, “Unsupervised pre-training of
+     bidirectional speech encoders via masked reconstruction,” in ICASSP,
+     2020.
+[48] A. T. Liu, S.-w. Yang, P.-H. Chi, P.-c. Hsu, and H.-y. Lee, “Mockingjay:
+     Unsupervised speech representation learning with deep bidirectional
+     transformer encoders,” in ICASSP, 2020.
+[49] P.-H. Chi, P.-H. Chung, T.-H. Wu, C.-C. Hsieh, S.-W. Li, and H.-y.
+     Lee, “Audio albert: A lite bert for self-supervised learning of audio
+     representation,” arXiv preprint arXiv:2005.08575, 2020.
+[50] S. Ling and Y. Liu, “Decoar 2.0: Deep contextualized acoustic repre-
+     sentations with vector quantization,” arXiv preprint arXiv:2012.06659,
+     2020.
+[51] A. Baevski, M. Auli, and A. Mohamed, “Effectiveness of self-supervised
+     pre-training for speech recognition,” arXiv preprint arXiv:1911.03912,
+     2019.
+[52] Y.-H. H. Tsai, Y. Wu, R. Salakhutdinov, and L.-P. Morency, “Self-
+     supervised learning from a multi-view perspective,” arXiv preprint
+     arXiv:2006.05576, 2020.
+[53] S. Pascual, M. Ravanelli, J. Serrà, A. Bonafonte, and Y. Bengio,
+     “Learning problem-agnostic speech representations from multiple self-
+     supervised tasks,” in INTERSPEECH, 2019.
+[54] T. Likhomanenko, Q. Xu, J. Kahn, G. Synnaeve, and R. Collobert,
+     “slimipl: Language-model-free iterative pseudo-labeling,” arXiv preprint
+     arXiv:2010.11524, 2020.
+[55] S. Lloyd, “Least squares quantization in pcm,” IEEE transactions on
+     information theory, vol. 28, no. 2, pp. 129–137, 1982.
+[56] F. Pedregosa et al., “Scikit-learn: Machine learning in python,” the
+     Journal of machine Learning research, 2011.
+[57] D. Arthur and S. Vassilvitskii, “k-means++: The advantages of careful
+     seeding,” Stanford, Tech. Rep., 2006.
+[58] D. P. Kingma and J. Ba, “Adam: A method for stochastic optimization,”
+     arXiv preprint arXiv:1412.6980, 2014.
+[59] V. Pratap et al., “wav2letter++: The fastest open-source speech recog-
+     nition system,” arXiv preprint arXiv:1812.07625, 2018.
+[60] M. Ott et al., “fairseq: A fast, extensible toolkit for sequence modeling,”
+     in NAACL, 2019.
+[61] D. S. Park, Y. Zhang, Y. Jia, W. Han, C.-C. Chiu, B. Li, Y. Wu, and Q. V.
+     Le, “Improved noisy student training for automatic speech recognition,”
+     arXiv preprint arXiv:2005.09629, 2020.
+[62] A. Gulati, J. Qin, C.-C. Chiu, N. Parmar, Y. Zhang, J. Yu, W. Han,
+     S. Wang, Z. Zhang, Y. Wu et al., “Conformer: Convolution-augmented
+     transformer for speech recognition,” arXiv preprint arXiv:2005.08100,
+     2020.
+[63] Q. Xu, A. Baevski, T. Likhomanenko, P. Tomasello, A. Conneau,
+     R. Collobert, G. Synnaeve, and M. Auli, “Self-training and pre-
+     training are complementary for speech recognition,” arXiv preprint
+     arXiv:2010.11430, 2020.
+[64] D. Le, X. Zhang, W. Zheng, C. Fügen, G. Zweig, and M. L. Seltzer,
+     “From senones to chenones: Tied context-dependent graphemes for
+     hybrid speech recognition,” in ASRU, 2019.
+

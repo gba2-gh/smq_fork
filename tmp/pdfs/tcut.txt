@@ -1,0 +1,855 @@
+                                                            Temporally Consistent Unbalanced Optimal Transport
+                                                                  for Unsupervised Action Segmentation
+
+                                                                        Ming Xu                                      Stephen Gould
+                                                             Australian National University                  Australian National University
+                                                                  mingda.xu@anu.edu.au                         stephen.gould@anu.edu.au
+arXiv:2404.01518v3 [cs.CV] 8 Apr 2024
+
+
+
+
+                                                                Abstract
+
+                                            We propose a novel approach to the action segmentation
+                                        task for long, untrimmed videos, based on solving an opti-
+                                        mal transport problem. By encoding a temporal consistency
+                                        prior into a Gromov-Wasserstein problem, we are able to
+                                        decode a temporally consistent segmentation from a noisy
+                                        affinity/matching cost matrix between video frames and ac-
+                                        tion classes. Unlike previous approaches, our method does
+                                        not require knowing the action order for a video to attain          Figure 1. High-level overview of our action segmentation method,
+                                        temporal consistency. Furthermore, our resulting (fused)            ASOT. Given a (noisy) cost/affinity matrix between video frames
+                                        Gromov-Wasserstein problem can be efficiently solved on             and actions, ASOT solves an optimal transport (OT) problem to
+                                                                                                            yield temporally consistent segmentations.
+                                        GPUs using a few iterations of projected mirror descent.
+                                        We demonstrate the effectiveness of our method in an unsu-
+                                        pervised learning setting, where our method is used to gen-
+                                        erate pseudo-labels for self-training. We evaluate our seg-         however, is that individual actions occupy temporal blocks
+                                        mentation approach and unsupervised learning pipeline on            of frames. We call this phenomena the temporal consistency
+                                        the Breakfast, 50-Salads, YouTube Instructions and Desk-            property. Current approaches in the unsupervised setting do
+                                        top Assembly datasets, yielding state-of-the-art results for        not provide temporally consistent predictions “out-of-the-
+                                        the unsupervised video action segmentation task.                    box”, necessitating post-processing methods based on hid-
+                                                                                                            den Markov models (HMMs) [11, 22, 23, 26, 36, 40, 42] to
+                                                                                                            decode a segmentation from the learned representations. A
+                                                                                                            critical assumption for these HMM methods is that the ac-
+                                        1. Introduction                                                     tion order present within a video is known.
+                                           While action recognition is a well-studied topic in the              Furthermore, successful approaches to unsupervised
+                                        area of video understanding, datasets are typically com-            learning for image data based on joint representation learn-
+                                        prised of short videos arising from distinctive action cate-        ing and clustering [6, 45] have been adapted to the action
+                                        gories with tightly cropped temporal boundaries [16,17]. In         segmentation task [23, 40], yielding state-of-the-art results.
+                                        this paper, we study the less-explored setting of segment-          These methods use (regularized) optimal transport (OT) [9]
+                                        ing long, untrimmed videos of multi-stage activities, where         to generate pseudo-labels for self-training, and jointly learn
+                                        each video contains multiple actions. A fine grained tempo-         a video encoder and a set of action class embeddings. How-
+                                        ral understanding of videos is required for this task, which        ever, the OT formulation used in [23, 40] does not account
+                                        can be attained in a supervised learning setting given dense,       for temporal consistency, which is inherent to the action
+                                        per-frame annotations. Developing techniques to address             segmentation task. In addition, the balanced assignment
+                                        this task in an unsupervised manner will allow large video          assumption is imposed, which yields pseudo-labels that
+                                        collections to be utilized for learning without requiring ex-       are uniformly distributed among action classes. We argue
+                                        pensive frame-level annotations.                                    this is unreasonable for action segmentation since datasets
+                                           The action segmentation task can be formulated as a              used [2, 21, 35] exhibit long-tailed class distributions [11].
+                                        dense classification problem, where each frame within a                 Motivated by these observations, we propose Action
+                                        video is assigned to an action class. Specific to this task,        Segmentation Optimal Transport (ASOT), a novel method
+
+
+                                                                                                        1
+for decoding a temporally consistent segmentation from a             are similar to our approach, performing joint representation
+noisy affinity/matching cost matrix between video frames             learning and clustering using temporal OT.
+and action classes. ASOT involves solving a fused, unbal-               However, TOT [23] suffers from three limitations: 1)
+anced Gromov-Wasserstein (GW) optimal transport (OT)                 a balanced assignment assumption is enforced on pseudo-
+problem, which fuses visual information from the cost ma-            labels, which we argue is unreasonable for long-tailed ac-
+trix with a structure-aware GW component that encourages             tion class distributions encountered in action segmentation
+temporal consistency. Unbalanced OT allows for only a                datasets [11], 2) temporal consistency is not addressed and
+subset of actions to be represented within a video. Fig. 1           3) a single, fixed action ordering for all videos is assumed.
+illustrates the mechanics of ASOT.                                   UFSA [40] extends TOT [23] by relaxing 1) and 3) through
+    Finally, we show that ASOT is generally applicable as            two learned modules, an action transcript prediction mod-
+a post-processing step for action segmentation pipelines.            ule and a frame to transcript alignment module. In contrast,
+Unlike prior HMM-based approaches, ASOT handles order                our method addresses all three limitations of TOT, han-
+variations and repeated actions without knowing the action           dling order variations and repeated actions, by expanding
+ordering. While we primarily evaluate ASOT in an unsuper-            the OT formulation, with no significant increase in learn-
+vised learning setting, we also show how ASOT is effective           able parameters or network architecture complexity from
+for post-processing of supervised methods. We thoroughly             UFSA [40]. Furthermore, TOT [23] and UFSA [40] use
+evaluate ASOT on the unsupervised action segmentation                a HMM approach to decode segmentations given a fixed
+task, yielding state-of-the-art results. We provide an im-           (TOT) or estimated (UFSA) action ordering. In contrast,
+plementation of ASOT with training and evaluation code1 .            we can use ASOT for both pseudo-labelling and decoding.
+                                                                        We refer the reader to Ding et al. [11] for a comprehen-
+2. Related Work                                                      sive survey on the temporal action segmentation task.
+
+Fully Supervised Action Segmentation. Recent ap-                     Optimal Transport for Structured Prediction. Optimal
+proaches for the action segmentation task in the fully-              transport has been used for many alignment tasks in com-
+supervised setting have focused on developing appropriate            puter vision and machine learning, with too many applica-
+model architectures. In particular, the temporal convolu-            tions to be listed here. See Khamis et al. [18] for a recent
+tional network (TCN) [24,25] is widely used in the literature        survey. Recent examples in computer vision include key-
+since it handles long-term dependencies through a tempo-             point matching across image pairs [29, 32], point set regis-
+ral convolution layer. MS-TCN [13, 28] uses a multi-scale            tration [34] and training object detectors [10]. GW OT in
+TCN so videos can be processed at a high temporal res-               particular, has been used for structured data, e.g., represen-
+olution. Recently, transformer style architectures are also          tation learning on graphs [43] and recently, aligning brains
+being investigated [3, 5, 44], yielding promising results. Fi-       using fMRI scans [38]. For the first time, we use GW to ex-
+nally, some works propose additional segmentation refine-            ploit problem structure for a segmentation task. Our method
+ment blocks on top of existing architectures [1, 7, 15]. Ad          has strong connections to post-processing methods for im-
+hoc smoothness losses are commonly included during train-            age segmentation problems, e.g., dense conditional random
+ing to encourage temporal consistency [7, 13, 14, 44]. We            fields [20] and bilateral filtering [4], which is worth explor-
+show how ASOT can be used as a post-processing step to               ing in more detail in future work.
+further improve the performance of MS-TCN [28].
+                                                                     3. Optimal Transport on Structured Data
+Unsupervised Action Segmentation. In the unsuper-                       Our proposed method, ASOT, formulates the post-
+vised setting, learning by solving a proxy task is a common          processing step of the temporal action segmentation task
+approach. Kukleva et al. [22] proposed CTE, which uses               as an optimal transport problem. Specifically, we adopt a
+timestamp prediction as a proxy task. The output from in-            fused, unbalanced, Gromov-Wasserstein (FUGW OT) for-
+termediate network layers is used for the frame embeddings.          mulation. In this section, we will provide some background
+UDE [36] and VTE [42] extend CTE with a discriminative               on optimal transport and specifically, the FUGW problem.
+embedding loss and visual reconstruction loss. These meth-
+ods have two stages; representations are learned through the                                                  P
+proxy task, and a clustering algorithm is subsequently used          Preliminaries. First, let ⟨A, B⟩ :=        i,j Aij , Bij for
+to recover actions. ASAL [26] alternate between represen-            A, B ∈ Rn×m and let 1n be a length n vector of ones.
+tation learning and HMM parameter estimation using a gen-            Denote a dataset comprised of B videos as D := {V b }B  b=1 .
+eralized EM approach. Notably, TOT [23] and UFSA [40]                Each video is assumed to be comprised of N frames, de-
+                                                                                                  b
+                                                                     noted V b := {I1b , . . . , IN }. Furthermore, let Xb :=
+                                                                          b      N ×D
+  1 https://github.com/mingu6/action_seg_ot                          fθ (V ) ∈ R       denote frame-level embeddings for a sin-
+
+
+                                                                 2
+gle video, extracted using a deep network parameterized                                                                                                                                                                                                                                     single optimization problem. The FGW formulation is use-
+by θ. Let (learnable) cluster centroids, which represent                                                                                                                                                                                                                                    ful when both a ground cost and a structural prior is avail-
+actions, be denoted A := [a1 , . . . , aK ] ∈ RD×K . Let                                                                                                                                                                                                                                    able. FGW OT has been used previously in machine learn-
+[n] := {1, . . . , n} denote a discrete set with n elements, and                                                                                                                                                                                                                            ing for graph classification and clustering [41] and aligning
+finally, let ∆K ⊂ RK be the K − 1 dimensional probabil-                                                                                                                                                                                                                                     fMRI data [38]. Given parameter α ∈ [0, 1], and letting
+ity simplex and ∆N    K ⊂R
+                            K×N
+                                   denote the Cartesian product                                                                                                                                                                                                                             C := {Ck , Cv , Ca }, the FGW objective is given by
+space comprised of N such simplexes.
+                                                                                                                                                                                                                                                                                             \label {eq:fgwot_obj} \mathcal {F}_{\text {FGW}}(\mathbf {C}, \mathbf {T}) \coloneqq \alpha \mathcal {F}_{\text {GW}}(\mathbf {C}^v, \mathbf {C}^a, \mathbf {T}) + (1-\alpha ) \mathcal {F}_{\text {KOT}}(\mathbf {C}^k, \mathbf {T}). 
+3.1. Kantorovich Optimal Transport                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       (3)
+                                                                                                                                                                                                                                                                                            For the temporal segmentation problem, the KOT compo-
+   The classic optimal transport formulation is commonly                                                                                                                                                                                                                                    nent encodes visual similarity between the cluster/action
+known as the Kantorovich (KOT) formulation [37], and we                                                                                                                                                                                                                                     representations and video frame embeddings. The GW
+focus on the discrete setting in this paper. Given histograms                                                                                                                                                                                                                               component on the other hand, encodes desirable structural
+p ∈ ∆n and q ∈ ∆m , and a ground cost Ck ∈ Rn×m          +  ,                                                                                                                                                                                                                               properties for resulting segmentations, i.e., temporal consis-
+the KOT problem solves for the minimum cost coupling T⋆                                                                                                                                                                                                                                     tency. We will describe how parameters C are determined
+between p and q. Specifically, the problem is given by                                                                                                                                                                                                                                      for action segmentation in Sec. 4.
+                       \label {eq:ot_prob} \begin {array}{cc} \underset {\mathbf {T}\in \mathcal {T}_{\mathbf {p}, \mathbf {q}}}{\text {minimize}} & \mathcal {F}_{\text {KOT}}(\mathbf {C}^k, \mathbf {T}) \coloneqq \langle \mathbf {C}^k, \mathbf {T}\rangle , \end {array}    (1)       3.4. Unbalanced Optimal Transport
+                                                                                                                                                                                                                                                                                               Recently, there has been interest in unbalanced transport
+where Tp,q := {T ∈ Rn×m  +     | T1m = p, T⊤ 1n = q} is                                                                                                                                                                                                                                     problems [8, 33, 38], where the constraint for T to lie in the
+commonly referred to as the transportation polytope. The                                                                                                                                                                                                                                    transportation polytope Tp,q (often referred to as the bal-
+coupling T can be interpreted as a soft assignment between                                                                                                                                                                                                                                  anced assignment property) is relaxed. This can be achieved
+elements in the support of p and q, namely, two discrete sets                                                                                                                                                                                                                               by replacing the marginal constraints on T with penalty
+denoted [n] and [m]. In the context of action segmentation,                                                                                                                                                                                                                                 terms in the objective function. Concretely, in this work,
+coupling T ∈ RN ×K can be interpreted as an assignment                                                                                                                                                                                                                                      we will solve the optimization problem given by
+between frames and actions.
+                                                                                                                                                                                                                                                                                                                  \label {eq:fugw_prob} \begin {array}{cc} \underset {\mathbf {T}\in \mathcal {T}_{\mathbf {p}}}{\text {minimize}} & \mathcal {F}_{\text {FGW}}(\mathbf {C}, \mathbf {T}) + \lambda \text {D}_{\text {KL}}(\mathbf {T}^\top \ones _n \| \mathbf {q}), \end {array}    (4)
+3.2. Gromov-Wasserstein Optimal Transport
+                                                                                                                                                                                                                                                                                                                                                                                                                         P
+    Gromov-Wasserstein (GW) optimal transport is an ex-                                                                                                                                                                                                                                     where DKL (a∥b) :=         i ai log(ai /bi ) is the Kullback-
+                                                                                                                                                                                                                                                                                                                                       n×m
+tension to the Kantorovich formulation, and is used for                                                                                                                                                                                                                                     Leibler divergence and Tp := {T ∈ R+             | T1K = p}
+comparing histograms defined over incomparable spaces.                                                                                                                                                                                                                                      is a partial polytope constraint over the row-sum marginal
+Concretely, let (Cv , p) ∈ Rn×n × ∆n and (Ca , q) ∈                                                                                                                                                                                                                                         of T. A penalty, weighted by λ > 0, is applied between
+Rm×m × ∆m be two metric-measure pairs. The distance                                                                                                                                                                                                                                         the column-sum marginal of T to q. We will explain in
+matrices, Cv (resp. Ca ) fully describe a metric defined over                                                                                                                                                                                                                               Sec. 4.3 why the unbalanced formulation is important for
+supports [n] (resp. [m]). In the GW setting, there is no met-                                                                                                                                                                                                                               the temporal segmentation task.
+ric/cost defined between [n] and [m]. The GW OT prob-
+lem [30] replaces the KOT objective function in Eq. 1 with                                                                                                                                                                                                                                  4. Action Segmentation Optimal Transport
+                                                                                                                                                                                                                                                                                               In this section, we describe our proposed post-processing
+                                                                                                                                                                                                                                                                                            approach ASOT, for the action segmentation problem.
+       \label {eq:gwot_obj} \mathcal {F}_{\text {GW}}(\mathbf {C}^v, \mathbf {C}^a, \mathbf {T}) \coloneqq \sum _{\substack {i,k \in [n]\\j,l \in [m]}} L(C_{ik}^v, C_{jl}^a) T_{ij}T_{kl},                                                                                       (2)
+                                                                                                                                                                                                                                                                                            First, we explain how to extract a temporally consistent seg-
+                                                                                                                                                                                                                                                                                            mentation from a (noisy) cost matrix between video frames
+                                                                                                                                                                                                                                                                                            and actions using optimal transport. These cost matrices
+where L : R × R → R is a cost function penalizing devi-                                                                                                                                                                                                                                     are easily computed using learned video frame and action
+ations between distance matrix elements. GW OT is com-                                                                                                                                                                                                                                      embeddings. Second, we introduce the fused, unbalanced
+monly used to compare structured objects, e.g., graphs [30].                                                                                                                                                                                                                                Gromov-Wasserstein OT problem underlying ASOT. The
+In our work, we use this GW formulation to encode struc-                                                                                                                                                                                                                                    importance of the unbalanced and GW components for the
+tural priors over the transport map desirable for the video                                                                                                                                                                                                                                 action segmentation problem will be described in detail. Fi-
+segmentation task (i.e., temporal consistency). This is                                                                                                                                                                                                                                     nally, we discuss including entropy regularization, which
+achieved by setting Cv and Ca in a particular way, which                                                                                                                                                                                                                                    allows us to develop a fast, iterative solution based on scal-
+will be described in detail in Sec. 4.2.                                                                                                                                                                                                                                                    ing algorithms [8, 9, 30, 33, 38].
+3.3. Fused GW Optimal Transport                                                                                                                                                                                                                                                             4.1. Optimal Transport for Action Segmentation
+   The fused Gromov-Wasserstein (FGW) problem [27, 38,                                                                                                                                                                                                                                         Let p = N1 1N and q = K   1
+                                                                                                                                                                                                                                                                                                                           1K be histograms over the
+39, 41] combines the KOT and GW OT formulations into a                                                                                                                                                                                                                                      set of N video frames and K actions, denoted [N ] and [K],
+
+
+                                                                                                                                                                                                                                                                                        3
+respectively. An (optimal) coupling T⋆ ∈ RN ×K between
+[N ] and [K] can be interpreted as a (soft) assignment be-
+tween video frames and actions. For frame i, we can pre-
+dict the corresponding action using j ⋆ = arg maxj T⋆ij . Let
+C be the set of cost matrices for the KOT and GW sub-                                                                                                                                                                                     (a) Affinity matrix 1 − Ck .                                                                                                  (b) ASOT solution.
+problems, which will be defined in Sec. 4.2. We solve the
+optimization problem in Eq. 4 for the coupling T⋆ .
+4.2. Objective Function Formulation
+Visual Information. Given frame embeddings X and ac-
+tion embeddings A, we can derive the matching cost matrix                                                                                                                                                                                (c) ASOT w/no GW (α = 0). (d) ASOT w/out unbalanced OT.
+     k :=          x⊤ a
+as Cij     1 − ∥xi ∥i2 ∥ajj ∥2 . This defines the KOT compo-                                                                                                                                                                         Figure 2. A raw frame/action affinity matrix in a) is decoded using
+nent of Eq. 4, and incorporates visual information from the                                                                                                                                                                          ASOT into a temporally consistent segmentation in b). Removing
+videos through the frame encoder. However, the KOT com-                                                                                                                                                                              GW from b) destroys temporal consistency, shown in c). Forcing a
+ponent alone does not provide temporal consistency.                                                                                                                                                                                  balanced assignment to actions in b) yields temporally consistent,
+                                                                                                                                                                                                                                     but unintuitive results, shown in d).
+Structural Priors. The GW component encourages tem-
+poral consistency over T. Define the GW cost function as                                                                                                                                                                             for λ allows ASOT to find a segmentation that faithfully
+L(a, b) := ab, radius parameter r ∈ [0, 1] and furthermore,                                                                                                                                                                          replicate the learned embeddings, whereas a high λ em-
+let Cv ∈ RN ×N and Ca ∈ RK×K be costs over video                                                                                                                                                                                     phasises that the segmentation is balanced across actions.
+frames and action categories, respectively, given by                                                                                                                                                                                 Fig. 2b and 2d illustrates balanced and unbalanced OT.
+
+  \label {eq:cv_def} \mathbf {C}^v_{ik} \coloneqq \begin {cases} 1 / r & 1 \leq |i - k| \leq Nr \\ 0 & \text {o/w} \end {cases} , \,\, \mathbf {C}^a_{jl} \coloneqq \begin {cases} 0 & j = l \\ 1 & \text {o/w} \end {cases}.        4.4. Fast Numerical Solver for ASOT
+                                                                                                                                                                                                                                        We add anP  entropy regularization term −ϵH(T), where
+                                                          (5)
+                                                                                                                                                                                                                                     H(T) := − i,j Tij log Tij and ϵ > 0, into the objective
+   This GW formulation penalizes couplings with low tem-
+                                                                                                                                                                                                                                     function in Eq. 4. We can solve the FUGW problem using
+poral consistency. Specifically, assigning temporally adja-
+                                                                                                                                                                                                                                     projected mirror descent similar to [30], which is amenable
+cent frames (within a radius of N r frames) to different ac-
+                                                                                                                                                                                                                                     for computation on GPUs. Our solver typically converges
+tions incurs a cost in the GW objective in Eq. 2. To see
+                                                                                                                                                                                                                                     within 25 iterations, with each iteration having time com-
+this, let Tij and Tkl represent two assignment probabilities
+                                                                                                                                                                                                                                     plexity O(N K) after exploiting the sparsity structure of Cv
+with |i − k| ≤ N r, i ̸= k (adjacent) and j ̸= l (differ-
+                                                                                                                                                                                                                                     and Ca . We provide more details and psuedocode in the
+ent actions). A cost of Tij Tkl is incurred in Eq. 2, since
+      p    q                                                                                                                                                                                                                         appendix. The largest video we encountered (in the 50Sal-
+L(Cik   , Cjl ) = 1. On the other hand, action changes out-
+                                                                                                                                                                                                                                     ads [35] dataset) had N = 16k frames and K = 19 action
+side of a temporal interval (|i − k| > N r) incur no cost nor
+                                                                                                                                                                                                                                     classes and takes 26.1ms on an Nvidia RTX 4090 GPU.
+does mapping adjacent frames to the same action (j = l).
+Fig. 2b and 2c illustrates the effect of the GW component.
+   Finally, note that we can compute Eq. 2 efficiently as
+                                                                                                                                                                                                                                     5. Unsupervised Learning Pipeline
+FGW (Cv , Ca , T) = ⟨Cv TCa , T⟩ since the loss L(a, b) =                                                                                                                                                                                In this section, we will describe our simple represen-
+ab can be factorized, following Peyré et al. [30].                                                                                                                                                                                  tation learning pipeline for unsupervised action segmenta-
+4.3. Importance of Unbalanced Transport                                                                                                                                                                                              tion. Core to our method is a self-training approach; we use
+                                                                                                                                                                                                                                     ASOT described in Sec. 4 to generate pseudo-labels, which
+    For the temporal action segmentation task, a balanced                                                                                                                                                                            are then used to train a video frame encoder. Fig. 3 illus-
+assignment necessitates that each video frame is assigned                                                                                                                                                                            trates the representation learning pipeline.
+to an action and furthermore, that each action is represented
+equally across the frames of a video. While assigning each                                                                                                                                                                           Learning Problem. Our unsupervised problem involves
+video frame to an action is required for the segmentation                                                                                                                                                                            learning the parameters θ of a video frame encoder by min-
+task, not every action may occur within a video. The par-                                                                                                                                                                            imizing the cross-entropy (CE) loss between frame/action
+tial polytope constraint in Sec. 3.4, i.e., T ∈ Tp , ensures                                                                                                                                                                         embedding similarities and (soft) pseudo-labels computed
+that every frame is assigned to an action. However, we do                                                                                                                                                                            by ASOT. Concretely, let Pb ∈ ∆N    K be normalized similar-
+not force every action to be evenly represented over video                                                                                                                                                                           ities for batch element b, defined element-wise as
+frames. Instead, we regularize the distribution of actions
+observed within a video towards uniformity using a KL-
+divergence penalty weighted by λ > 0. Setting lower values                                                                                                                                                                                             \label {eq:clus-emb-sims} P^b_{ij} \coloneqq \frac {\exp (\mathbf {X}^b \mathbf {A}^\top / \tau )_{ij}}{\sum _l\exp (\mathbf {X}^b \mathbf {A}^\top / \tau )_{il}},    (6)
+
+
+                                                                                                                                                                                                                                 4
+                                                                                                                                                                            activity categories, where each activity category cor-
+                                                                                                                                                                            responds to a particular item (e.g., scrambled egg,
+                                                                                                                                                                            juice). Within each video, multiple actions are ob-
+                                                                                                                                                                            served (e.g., crack egg, pour flour). Breakfast contains
+                                                                                                                                                                            10 activity categories with 48 actions across all activ-
+                                                                                                                                                                            ities, and videos range from a few seconds to several
+Figure 3. The unsupervised training pipeline. Orange are learnable                                                                                                          minutes. We use pre-computed Fisher vector features
+parameters, and arrows indicate computation/gradient flow.
+                                                                                                                                                                            from images, consistent with prior works [22, 23, 26].
+                                                                                                                                                                         • The YouTube Instructions (YTI) dataset [2] includes
+where τ > 0 is a temperature scaling parameter. Next, soft-                                                                                                                150 instructional videos belonging to 5 activity cat-
+pseudo labels Tb ∈ RK×N are derived from the solution                                                                                                                      egories. The average video lasts approx. 2 minutes,
+to the optimization problem in Eq. 4, parameterized using a                                                                                                                and this dataset also has a large number of background
+KOT cost matrix given by Ĉk = Ck + ρR where ρ ≥ 0.                                                                                                                        frames. We use pre-computed image features provided
+    Here R is a temporal prior, introduced in [23], de-                                                                                                                    by [2], consistent with prior works [22, 23, 26].
+fined element-wise as Rij = |i/N − j/K|. R regularizes
+the coupling towards a banded diagonal and encourages a                                                                                                                  • The 50 Salads (FS) dataset [35] contains 50 videos
+canonical ordering of actions across videos. We find set-                                                                                                                  of actors performing a cooking activity, totalling 4.5
+ting ρ > 0 encourages correspondences between adjacent                                                                                                                     hours in length. Consistent with prior works, we report
+frames across videos, improving clustering performance.                                                                                                                    results at two action granularity levels, i.e., Mid with
+    Our representation learning loss is given by                                                                                                                           19 action classes and Eval with 12 action classes. The
+                                                                                                                                                                           Eval level aggregates some actions in the Mid level
+                                                                                                                                                                           into a single action. We use pre-computed features
+           \label {eq:crossentropy} \mathcal {L}_{\text {train}}(\theta ) = -\frac {1}{B}\sum _{b=1}^B \sum _{i=1}^N\sum _{j=1}^k T^b_{ij} \log P^b_{ij}.    (7)           which were used in prior works [22, 23, 26].
+                                                                                                                                                                         • The Desktop Assembly (DA) dataset [23] includes 76
+Same as in prior works [6, 23], we apply a stop-gradient                                                                                                                   videos of actors performing an assembly activity. The
+through pseudo-labels Tb . The learnable parameters in-                                                                                                                    activity comprises 22 actions conducted in a fixed or-
+clude the feature extractor θ as well as action embeddings                                                                                                                 der. Each video is approx. 1.5 minutes long, and we
+A. We parameterize fθ as a multi-layer perceptron (MLP)                                                                                                                    use the pre-computed features provided by [23].
+applied per frame, consistent with prior works [22, 23, 26].
+
+6. Experimental Setup                                                                                                                                                  Evaluation Metrics. We follow an evaluation protocol
+                                                                                                                                                                       consistent with prior works on the unsupervised segmen-
+Implementation Details. The encoder MLP has one hid-                                                                                                                   tation task [22, 23, 26, 36, 42], which we will now describe.
+den layer and we use the Adam optimizer [19] with a learn-                                                                                                             Since no ground truth action labels are used during training,
+ing rate of 10−3 and weight decay of 10−4 . We use k-means                                                                                                             we perform Hungarian matching to match learned action
+to initialize the action embeddings. During training, we                                                                                                               clusters to ground truth actions using frame labels and pre-
+sample 256 frames randomly from uniformly spaced bins                                                                                                                  dictions. We evaluate methods under two settings, where
+within each video, similar to [23]. A full description of hy-                                                                                                          the Hungarian matching is performed per video (Unsup.
+perparameter settings is provided in the appendix. We set K                                                                                                            per) and across the full dataset (Unsup. full). Matching per
+to be equal to the ground truth number of actions per activity                                                                                                         video does not require clusters to match to the same ground
+category/dataset, consistent with prior works [22,23,26,40].                                                                                                           truth action across videos and yields more favorable results.
+                                                                                                                                                                           We comprehensively evaluate all methods using mean-
+Datasets. We briefly describe the four video datasets we                                                                                                               over-frames (MoF), F1-score and mean intersection-over-
+use to evaluate our method. All unsupervised methods are                                                                                                               union (mIoU). MoF measures the percentage of correct per-
+trained and evaluated on the same set of videos. While                                                                                                                 frame predictions and is susceptible to class imbalance is-
+videos are subsampled during training for our method, we                                                                                                               sues in a dataset. The F1-score is defined on a per-segment
+use full videos during testing. For Breakfast and YouTube                                                                                                              basis, where a true positive is defined as having over 50%
+Instructions, we train and evaluate our method per activity                                                                                                            of the frames in a ground truth segment predicted correctly.
+category and aggregate results.                                                                                                                                        The F1-score is complementary to MoF since large seg-
+                                                                                                                                                                       ments (from dominant classes) are treated a single segment.
+   • The Breakfast (BF) dataset [21] consists of approx.                                                                                                               Finally, mIoU computes the IoU averaged over all classes,
+     1,700 videos, where each video captures a subject                                                                                                                 and is again complementary to both MoF and F1 because
+     preparing a breakfast item. The dataset is split across                                                                                                           because it explicitly handles class imbalance.
+
+
+                                                                                                                                                                   5
+                                                                          7. Results
+                                                                          7.1. State-of-the-Art Comparison
+                                                                              Our experimental results are presented in Tab. 1. For the
+                                                                          Unsup. (full) setting, our method consistently outperforms
+                                                                          all relevant prior works across all evaluation metrics. For
+                                                                          the Breakfast dataset, our method yields comparable results
+        (a) Example videos from the “salat” activity class
+        within the Breakfast dataset, exhibiting order varia-             to ASAL [26] and the recent joint representation learning
+        tions and repeated actions. Both cases are handled by             and clustering approach UFSA [40], where UFSA (T) in
+        ASOT. Actions classes shown are cut fruit, peel fruit,            Tab. 1 refers to the authors’ full model with a transformer
+        fruit to bowl, background.
+                                                                          frame encoder. However, we show major improvements
+                                                                          over UFSA (T) for the FS (Mid) and DA datasets.
+                                                                              We note that our method uses a simple MLP frame en-
+                                                                          coder, whereas UFSA uses a more complex transformer en-
+                                                                          coder, on top of multiple additional learned modules. For a
+                                                                          fairer comparison, we also present results for UFSA with a
+                                                                          comparable MLP encoder, displayed as UFSA (M) in Tab. 1.
+        (b) Example videos from YTI (“repot” category). Ac-
+                                                                          Compared to UFSA (M), we show significant improve-
+        tions classes shown are tap pot, take plant, loosen               ments for YTI and FS (Eval). Similar to UFSA, we believe
+        root, put soil, add top, water plant, place plant.                our method’s ability to handle out-of-order alignments dur-
+                                                                          ing segmentation contributes to the improved performance.
+Figure 4. Example action segmentations for videos in the same             Fig. 4 contains qualitative examples where actions are seen
+activity category with differing action orderings. Different colors
+                                                                          in different orders across videos within a dataset.
+correspond to different actions. Videos of complex, multi-stage
+                                                                              For the per video evaluation protocol, our method out-
+activities can be exhibit markedly different action orderings.
+                                                                          performs TWF [31] and ABD [12] on the BF and YTI
+                                                                          datasts for MoF and F1, however for BF it performs
+Comparison Methods. We compare our approach                               poorly on mIoU. We believe this is because our method
+against multiple prior works on unsupervised action                       is more successfully finding segmentation boundaries for
+segmentation [22, 23, 26, 36, 40, 42]. Common to all of                   large classes, at the cost of failing to identify shorter, more
+these prior approaches is that post-processing involves                   underrepresented actions. In addition, our method appears
+solving an inference problem in some underlying hidden                    to underperform on FS (Mid and Eval) and yield compara-
+Markov model (HMM). The states in the HMM correspond                      ble results for DA. We emphasize that the results were opti-
+to learned action clusters, and observation likelihoods                   mized for the Unsup. (full) setting, where actions should be
+correspond to frame/cluster similarities. A core assumption               identified correctly across videos. An interesting avenue for
+around the HMM is that the action ordering is known for all               future work is to investigate how to estimate action clusters
+videos, which informs the structure of the transition matrix.             using frame features from a single video for our method.
+    All approaches apart from [40] assume a fixed action or-              7.2. Ablation Study
+dering for all videos a priori, whereas [40] estimates the
+action ordering per video using an action transcript predic-                 In this section, we analyze the effects of various choices
+tion module. However, our unsupervised learning pipeline                  in our learning pipeline and present the results in Table 2.
+uses ASOT for post-processing and does not need these re-
+strictive assumptions or additional learned modules.                      Temporal prior and k-means. First, we ablate the effect
+    We also add a comparison to unsupervised methods                      of initialization of action clusters by switching k-means to
+which perform Hungarian matching and evaluate per video                   random sampling (No k-means). We find that overall, using
+(Unsup. per) [12, 31]. For our method, we can use the                     k-means is beneficial because the clusters are initialized to
+clusters and frame features learned over the full dataset but             be more evenly represented within videos, yielding higher
+evaluate metrics using Hungarian matching per video. TW-                  quality pseudo-labels at the start of training. Second, we
+FINCH (TWF) [31] applies clusters time-weighted frame                     remove the temporal prior (No temp. prior) described in
+features within a single video and uses cluster assignments               Sec. 5. The prior appears to yield a positive effect overall.
+for segmentation. ABD [12] uses a change detection ap-
+proach applied over image similarities computed from ad-                  Effect of (un)balanced assignment. For ASOT, we first
+jacent video frames. As discussed previously, per video                   analyze the effect of forcing a balanced assignment to ac-
+matching tends to yield (much) more favorable results.                    tions (Balanced OT), ignoring the unbalanced OT formu-
+
+
+                                                                      6
+                              Breakfast       YouTube Instr. 50 Salads (Mid) 50 Salads (Eval)        Desktop Ass.
+                          MoF / F1 / mIoU MoF / F1 / mIoU MoF / F1 / mIoU MoF / F1 / mIoU MoF / F1 / mIoU
+  Per Video TWF [31]      62.7 / 49.8 / 42.3 56.7 / 48.2 / - 66.8 / 56.4 / 48.7 71.7 / - / - 73.3 / 67.7 / 57.7
+            ABD [12]      64.0 / 52.3 / - 67.2 / 49.2 / - 71.8 / - / - 71.2 / - / -                  - / - / -
+            ASOT (Ours) 63.3 / 53.5 / 35.9 71.2 / 63.3 / 47.8 64.3 / 51.1 / 33.4 64.5 / 58.9 / 33.0 73.4 / 68.0 / 47.6
+  Full      CTE∗ [22]     41.8 / 26.4 / - 39.0 / 28.3 / - 30.2 / - / - 35.5 / - / - 47.6 / 44.9 / -
+            CTE† [22]     47.2 / 27.0 / 14.9 35.9 / 28.0 / 9.9 30.1 / 25.5 / 17.9 35.0 / 35.5 / 21.6 - / - / -
+            VTE [42]      48.1 / - / -         - / 29.9 / - 24.2 / - / - 30.6 / - / -                - / - / -
+            UDE [36]      47.4 / 31.9 / - 43.8 / 29.6 / -       - / - / - 42.2 / 34.4 / -            - / - / -
+            ASAL [26]     52.5 / 37.9 / - 44.9 / 32.1 / - 34.4 / - / - 39.2 / - / -                  - / - / -
+            TOT [23]      47.5 / 31.0 / - 40.6 / 30.0 / - 31.8 / - / - 47.4 / 42.8 / - 56.3 / 51.7 / -
+            TOT+ [23]     39.0 / 30.3 / - 45.3 / 32.9 / - 34.3 / - / - 44.5 / 48.2 / - 58.1 / 53.4 / -
+            UFSA (M) [40] - / - / - 43.2 / 30.5 / -             - / - / - 47.8 / 34.8 / -            - / - / -
+            UFSA (T) [40] 52.1 / 38.0 / - 49.6 / 32.4 / - 36.7 / 30.4 / - 55.8 / 50.3 / - 65.4 / 63.0 / -
+            ASOT (Ours) 56.1 / 38.3 / 18.6 52.9 / 35.1 / 24.7 46.2 / 37.4 / 24.9 59.3 / 53.6 / 30.1 70.4 / 68.0 / 45.9
+
+Table 1. Summary of experimental results. For all evaluation metrics, higher is better and bold (respectively, underline) indicates the
+best (respectively second best) performing methods. A “-” indicates that a metric was not reported in the original paper. Note that “Full”
+and “Per Video” relate to the evaluation metrics being computed by applying Hungarian matching on a whole dataset and per video basis,
+respectively. For CTE [22], ∗ and † indicate results reported and reproduced using model checkpoints provided by the authors, respectively.
+Results were generated using one run, consistent with prior works, however we provide results for 5 runs for FS and DA in the appendix.
+
+                              Breakfast        YouTube Instr. 50 Salads (Mid) 50 Salads (Eval) Desktop Ass.
+                           MoF / F1 / mIoU MoF / F1 / mIoU MoF / F1 / mIoU MoF / F1 / mIoU MoF / F1 / mIoU
+      Base                 56.1 / 38.3 / 18.6 52.9 / 35.1 / 24.7 46.2 / 37.4 / 24.9 59.3 / 53.6 / 30.1 70.4 / 68.0 / 45.9
+      No k-means           57.7 / 36.0 / 17.1 49.5 / 34.1 / 21.3 42.1 / 34.5 / 22.1 55.2 / 52.7 / 28.2 56.8 / 61.7 / 35.6
+      No temp. prior       48.5 / 24.9 / 16.3 46.9 / 26.2 / 14.6 43.1 / 36.5 / 21.9 59.7 / 54.7 / 26.3 31.4 / 18.7 / 10.6
+      Balanced OT          29.7 / 29.3 / 17.8 39.4 / 31.4 / 14.6 39.7 / 39.8 / 25.3 35.7 / 41.8 / 24.9 56.5 / 72.7 / 37.8
+      No GW (train)        34.4 / 25.9 / 14.4 41.1 / 24.9 / 11.7 29.0 / 22.6 / 14.3 35.1 / 38.6 / 22.5 49.5 / 49.4 / 30.4
+      No GW (train & test) 32.6 / 21.3 / 10.4 38.0 / 21.8 / 11.9 17.3 / 4.2 / 8.9 25.8 / 21.3 / 14.8 45.4 / 42.0 / 26.5
+
+     Table 2. Ablation study results for the Unsup (full) setting. Effects are not additive. For all evaluation metrics, higher is better.
+
+
+lation described in Sec. 4.3. For the BF, YTI and FS                      7.3. Sensitivity Analysis
+datasets, we observed that dominant classes are common
+in the ground truth annotations, and forcing a balanced as-                   In addition to the ablation studies, we performed a sensi-
+signment to actions severely degrades performance overall.                tivity analysis on the hyperparameters of our action segmen-
+However for DA, enforcing a balanced assignment actually                  tation OT method during training. These hyperparameters
+slightly improves performance. This is because the ground                 strongly influence the behavior of the pseudo-labels and re-
+truth actions are (relatively) evenly represented across the              sultant learned representations. We illustrate the results in
+DA dataset. Compare Figures 6b and 4 to Figure 6a to see                  Fig. 5 and perform this analysis using the desktop assembly
+class balance discrepancies across datasets.                              (DA) and 50 Salads (FS) datasets at both the Eval and Mid
+                                                                          granularity, using MoF as the metric.
+
+
+                                                                          Effect of λ, r and α. As discussed in Sec. 7.2, a (more)
+Effect of GW structural prior. Finally, we remove the                     balanced assignment benefits datasets such as DA and FS
+GW problem described in Sec. 3.2 at training time only (No                (Mid) with a large number of action classes. Unsurpris-
+GW (train)), as well as at both training and test time (No                ingly, MoF improves for DA and FS (Mid) for increasing
+GW (train & test)). We observe that removing the temporal                 λ, whereas FS (Eval), which has more dominant action
+consistency of the pseudo-labels alone is enough to com-                  classes, has an optimal point around λ = 0.11. Further-
+promise the performance of our method. As expected, also                  more, the GW radius r is positively correlated to the re-
+removing the temporal consistency of the test time segmen-                sulting segment length. We can see that a small value of
+tations further reduces performance.                                      r = 0.02 is enough for temporal consistency in FS (Mid
+
+
+                                                                      7
+       0.8
+                 DA     FS (Mid)          FS (Eval)
+                                                        0.8
+                                                                    DA      FS (Mid)    FS (Eval)         may result in numerical instability arising from the solver,
+       0.6                                              0.6                                               while high values may result in incoherent segmentations.
+     MoF
+
+
+
+
+                                                      MoF
+       0.4                                              0.4                                               Finally, for datasets large number of classes (DA and FS
+       0.2                                              0.2                                               Mid), setting number the of clusters K to be equal to true
+       0.0
+                  0.100 0.125 0.150 0.175 0.200
+                                                             0
+                                                                 0.02     0.04   0.06   0.08   0.10
+                                                                                                          number of actions Kgt appears to be optimal. For FS (Eval)
+                               λ                                                 r                        where dominant classes as present, performance actually
+     (a) Balanc. assign. weight λ                                    (b) GW radius r                      improves by setting fewer clusters.
+                 DA     FS (Mid)          FS (Eval)                 DA      FS (Mid)    FS (Eval)
+           0.8                                          0.8
+                                                                                                          7.4. Post-Processing for Supervised Methods
+           0.6                                          0.6
+                                                      MoF
+     MoF
+
+
+
+
+           0.4                                          0.4                                                   We show the generality of ASOT as a post-processing
+           0.2                                          0.2
+                                                                                                          method by applying it to the outputs of the supervised
+           0.0                                          0.0
+                  0.2    0.4       0.6       0.8                 0.10     0.15   0.20   0.25   0.30       method MS-TCN++ [28] for the 50 Salads dataset. We use
+                               α                                                 ρ
+                                                                                                          the recommended multi-scale configuration (MS) with three
+                 (c) GW weight α                       (d) Global temporal prior ρ
+                                                                                                          refinement layers as well as without refinement layers, i.e.,
+                 DA     FS (Mid)          FS (Eval)                  DA      FS (Mid)   FS (Eval)
+       0.8                                                  0.8                                           single-scale (SS). [28] observed that the primary function of
+       0.6                                                  0.6                                           the refinement layers is to improve the temporal consistency
+     MoF
+
+
+
+
+                                                      MoF
+
+
+
+
+       0.4                                                  0.4                                           of the predictions. Our results verify this finding, since SS
+       0.2                                                  0.2
+                                                                                                          with ASOT yields comparable performance with MS. Fur-
+       0.0                                                  0.0
+                 0.04   0.06       0.08      0.10                 0.50    0.75   1.00   1.25   1.50       thermore, applying ASOT to MS yields significant further
+                         ε (train)                                               K
+                                                                                                          improvements. See the appendix for hyperparameter set-
+             (e) Entropy reg. ϵtrain                  (f) Ratio of learned/true actions
+                                                                                                          tings and more details on this experiment.
+ Figure 5. Sensitivity analysis on FUGW OT hyperparameters.
+                                                                                                                          Accuracy ED F1@10 F1@25 F1@50
+                                                                                                              MS            83.5 72.6 80.1   77.2  69.4
+                                                                                                              SS            76.0 36.3 44.8   42.3  34.9
+                                                                                                          MS + ASOT         83.6 77.6 84.4   83.1  74.9
+                                    (a) Desktop Assembly
+                                                                                                          SS + ASOT         78.3 72.5 80.3   78.5  69.9
+
+                                                                                                          Table 3. ED and F1@N refers to the segmental edit distance and
+                                                                                                          F1 score at overlapping threshold of N %, respectively. Acc. is the
+                                                                                                          MoF accuracy. Higher is better for all metrics.
+                                      (b) 50 Salads (Eval)
+
+Figure 6. Example segmentations from DA and FS (Eval). Note
+the dominant red class in FS, whereas DA is (roughly) balanced.                                           8. Discussion and Conclusion
+                                                                                                              In this paper we present a novel method for the un-
+                                                                                                          supervised action segmentation task on long, untrimmed
+and Eval) and DA, yielding the best MoF. Finally, MoF is
+                                                                                                          videos. Our post-processing approach ASOT, yields tempo-
+relatively insensitive to the GW structure weight α, except
+                                                                                                          rally consistent segmentations without prior knowledge of
+at the extremes. We find a value of α ∈ [0.2, 0.5] to work
+                                                                                                          the action ordering, required by previous approaches. Fur-
+well across all evaluated datasets.
+                                                                                                          thermore, we show that in the unsupervised setting, ASOT
+                                                                                                          produces pseudo-labels suitable for self-training. Future
+Effect of ρ, ϵtrain and K. Finally, we observe that higher                                                work will investigate the semi and fully-supervised action
+values for the global temporal prior weight ρ benefits DA.                                                segmentation settings, which will require backpropagating
+We believe this is because a (banded) diagonal coupling is a                                              through our ASOT problem. Finally, developing methods
+reasonable solution for datasets such as DA with relatively                                               for unsupervised learning over all activity categories for
+balanced action classes and identical action orderings across                                             challenging datasets such as Breakfast is an important direc-
+videos. However, FS (Eval and Mid) seem to benefit from                                                   tion for future work, and will require a more sophisticated
+removing the global prior altogether. The pseudo-labels at                                                learning pipeline than the one proposed in Sec. 5.
+initialization appear to be high quality, and do not need ad-
+ditional guidance from the global structure.                                                              Acknowledgements. This work was supported by an
+    Furthermore, we observe that the optimal value for en-                                                Australian Research Council (ARC) Linkage grant (project
+tropy regularization for the OT problem, denoted ϵtrain ,                                                 number LP210200931). Ming Xu thanks Akshay Asthana
+should be set between 0.06 and 0.08. Low values for ϵtrain                                                and Liang Zheng for helpful discussions about this work.
+
+
+                                                                                                      8
+References                                                                   Classification with Convolutional Neural Networks. In IEEE
+                                                                             Conf. Comput. Vis. Pattern Recog., 2014. 1
+ [1] Hyemin Ahn and Dongheui Lee. Refining Action Segmenta-
+                                                                        [17] Will Kay, Joao Carreira, Karen Simonyan, Brian Zhang,
+     tion With Hierarchical Video Representations. In Int. Conf.
+                                                                             Chloe Hillier, Sudheendra Vijayanarasimhan, Fabio Viola,
+     Comput. Vis., 2021. 2
+                                                                             Tim Green, Trevor Back, Paul Natsev, Mustafa Suleyman,
+ [2] Jean-Baptiste Alayrac, Piotr Bojanowski, Nishant Agrawal,               and Andrew Zisserman. The Kinetics Human Action Video
+     Josef Sivic, Ivan Laptev, and Simon Lacoste-Julien. Un-                 Dataset, 2017. 1
+     supervised Learning From Narrated Instruction Videos. In
+                                                                        [18] Abdelwahed Khamis, Russell Tsuchida, Mohamed Tarek,
+     IEEE Conf. Comput. Vis. Pattern Recog., June 2016. 1, 5
+                                                                             Vivien Rolland, and Lars Petersson. Earth Movers in The
+ [3] Nicolas Aziere and Sinisa Todorovic. Multistage temporal
+                                                                             Big Data Era: A Review of Optimal Transport in Machine
+     convolution transformer for action segmentation. Image and
+                                                                             Learning, 2023. 2
+     Vision Computing, 2022. 2
+                                                                        [19] Diederick P Kingma and Jimmy Ba. Adam: A method
+ [4] Jonathan T. Barron and Ben Poole. The Fast Bilateral Solver.
+                                                                             for stochastic optimization. In Int. Conf. Learn. Represent.,
+     In Eur. Conf. Comput. Vis., 2016. 2
+                                                                             2015. 5
+ [5] Nadine Behrmann, S. Alireza Golestaneh, Zico Kolter, Juer-
+                                                                        [20] Krähenbühl, Philipp and Koltun, Vladlen. Efficient inference
+     gen Gall, and Mehdi Noroozi. Unified Fully and Timestamp
+                                                                             in fully connected crfs with gaussian edge potentials. In Adv.
+     Supervised Temporal Action Segmentation via Sequence to
+                                                                             Neural Inform. Process. Syst., 2011. 2
+     Sequence Translation. In Eur. Conf. Comput. Vis., 2022. 2
+                                                                        [21] Hilde Kuehne, Ali Arslan, and Thomas Serre. The Language
+ [6] Mathilde Caron, Ishan Misra, Julien Mairal, Priya Goyal, Pi-
+                                                                             of Actions: Recovering the Syntax and Semantics of Goal-
+     otr Bojanowski, and Armand Joulin. Unsupervised Learning
+                                                                             Directed Human Activities. In IEEE Conf. Comput. Vis. Pat-
+     of Visual Features by Contrasting Cluster Assignments. In
+                                                                             tern Recog., 2014. 1, 5
+     Adv. Neural Inform. Process. Syst., volume 33, 2020. 1, 5
+ [7] Min-Hung Chen, Baopu Li, Yingze Bao, Ghassan AlRegib,              [22] Anna Kukleva, Hilde Kuehne, Fadime Sener, and Jurgen
+     and Zsolt Kira. Action Segmentation With Joint Self-                    Gall. Unsupervised Learning of Action Classes With Con-
+     Supervised Temporal Domain Adaptation. In IEEE Conf.                    tinuous Temporal Embedding. In IEEE Conf. Comput. Vis.
+     Comput. Vis. Pattern Recog., 2020. 2                                    Pattern Recog., June 2019. 1, 2, 5, 6, 7, 12
+ [8] Lenaic Chizat, Gabriel Peyré, Bernhard Schmitzer, and             [23] Sateesh Kumar, Sanjay Haresh, Awais Ahmed, Andrey
+     François-Xavier Vialard. Scaling Algorithms for Unbal-                 Konin, M. Zeeshan Zia, and Quoc-Huy Tran. Unsuper-
+     anced Transport Problems. Mathematics of Computation, 87,               vised Action Segmentation by Joint Representation Learning
+     2016. 3                                                                 and Online Clustering. In IEEE Conf. Comput. Vis. Pattern
+ [9] Marco Cuturi. Sinkhorn Distances: Lightspeed Computation                Recog., June 2022. 1, 2, 5, 6, 7, 12
+     of Optimal Transport. In Adv. Neural Inform. Process. Syst.,       [24] Colin Lea, Michael D. Flynn, Rene Vidal, Austin Reiter, and
+     volume 26, 2013. 1, 3                                                   Gregory D. Hager. Temporal Convolutional Networks for
+[10] Henri De Plaen, Pierre-François De Plaen, Johan A. K.                  Action Segmentation and Detection. In IEEE Conf. Comput.
+     Suykens, Marc Proesmans, Tinne Tuytelaars, and Luc                      Vis. Pattern Recog., 2017. 2
+     Van Gool. Unbalanced Optimal Transport: A Unified Frame-           [25] Peng Lei and Sinisa Todorovic. Temporal Deformable Resid-
+     work for Object Detection. In IEEE Conf. Comput. Vis. Pat-              ual Networks for Action Segmentation in Videos. In IEEE
+     tern Recog., 2023. 2                                                    Conf. Comput. Vis. Pattern Recog., 2018. 2
+[11] Guodong Ding, Fadime Sener, and Angela Yao. Temporal               [26] Jun Li and Sinisa Todorovic. Action Shuffle Alternating
+     Action Segmentation: An Analysis of Modern Techniques.                  Learning for Unsupervised Action Segmentation. In IEEE
+     IEEE Trans. Pattern Anal. Mach. Intell., 2023. 1, 2                     Conf. Comput. Vis. Pattern Recog., June 2021. 1, 2, 5, 6, 7,
+[12] Zexing Du, Xue Wang, Guoqing Zhou, and Qing Wang. Fast                  12
+     and Unsupervised Action Boundary Detection for Action              [27] Mengyu Li, Jun Yu, Hongteng Xu, and Cheng Meng. Ef-
+     Segmentation. In IEEE Conf. Comput. Vis. Pattern Recog.,                ficient Approximation of Gromov-Wasserstein Distance Us-
+     2022. 6, 7                                                              ing Importance Sparsification. Journal of Computational and
+[13] Yazan Abu Farha and Jurgen Gall. MS-TCN: Multi-Stage                    Graphical Statistics, 2023. 3
+     Temporal Convolutional Network for Action Segmentation.            [28] Shijie Li, Yazan Abu Farha, Yun Liu, Ming-Ming Cheng,
+     In IEEE Conf. Comput. Vis. Pattern Recog., 2019. 2                      and Juergen Gall. MS-TCN++: Multi-Stage Temporal Con-
+[14] Dayan Guan, Jiaxing Huang, Aoran Xiao, and Shijian Lu.                  volutional Network for Action Segmentation. IEEE Trans.
+     Domain Adaptive Video Segmentation via Temporal Con-                    Pattern Anal. Mach. Intell., 2023. 2, 8, 12
+     sistency Regularization. In Int. Conf. Comput. Vis., 2021.         [29] Yanbin Liu, Linchao Zhu, Makoto Yamada, and Yi Yang.
+     2                                                                       Semantic correspondence as an optimal transport problem.
+[15] Yuchi Ishikawa, Seito Kasai, Yoshimitsu Aoki, and Hi-                   In IEEE Conf. Comput. Vis. Pattern Recog., 2020. 2
+     rokatsu Kataoka. Alleviating Over-segmentation Errors by           [30] Gabriel Peyré, Marco Cuturi, and Justin Solomon. Gromov-
+     Detecting Action Boundaries. In IEEE Wint. Conf. Applic.                Wasserstein Averaging of Kernel and Distance Matrices. In
+     Comput. Vis., 2021. 2                                                   Int. Conf. Mach. Learn., Jun 2016. 3, 4, 11
+[16] Andrej Karpathy, George Toderici, Sanketh Shetty, Thomas           [31] Saquib Sarfraz, Naila Murray, Vivek Sharma, Ali Diba, Luc
+     Leung, Rahul Sukthankar, and Li Fei-Fei. Large-scale Video              Van Gool, and Rainer Stiefelhagen. Temporally-Weighted
+
+
+                                                                    9
+     Hierarchical Clustering for Unsupervised Action Segmenta-
+     tion. In IEEE Conf. Comput. Vis. Pattern Recog., 2021. 6,
+     7
+[32] Paul-Edouard Sarlin, Daniel DeTone, Tomasz Malisiewicz,
+     and Andrew Rabinovich. SuperGlue: Learning Feature
+     Matching With Graph Neural Networks. In IEEE Conf. Com-
+     put. Vis. Pattern Recog., 2020. 2
+[33] Thibault Sejourne, Francois-Xavier Vialard, and Gabriel
+     Peyré. The Unbalanced Gromov Wasserstein Distance:
+     Conic Formulation and Relaxation. In Adv. Neural Inform.
+     Process. Syst., 2021. 3
+[34] Zhengyang Shen, Jean Feydy, Peirong Liu, Ariel H Curiale,
+     Ruben San Jose Estepar, Raul San Jose Estepar, and Marc
+     Niethammer. Accurate Point Cloud Registration with Robust
+     Optimal Transport. In Adv. Neural Inform. Process. Syst.,
+     2021. 2
+[35] Sebastian Stein and Stephen J. McKenna. Combining Em-
+     bedded Accelerometers with Computer Vision for Recogniz-
+     ing Food Preparation Activities. In ACM Int. Joi. Conf. Per-
+     vasive Ubiq. Comp., 2013. 1, 4, 5
+[36] Sirnam Swetha, Hilde Kuehne, Yogesh S Rawat, and
+     Mubarak Shah. Unsupervised Discriminative Embedding
+     For Sub-Action Learning in Complex Activities. In IEEE
+     Int. Conf. Image Process., 2021. 1, 2, 5, 6, 7, 12
+[37] Matthew Thorpe. Introduction to optimal transport, March
+     2018. 3
+[38] Alexis Thual, Quang Huy Tran, Tatiana Zemskova, Nico-
+     las Courty, Rémi Flamary, Stanislas Dehaene, and Bertrand
+     Thirion. Aligning individual brains with Fused Unbalanced
+     Gromov-Wasserstein. In Adv. Neural Inform. Process. Syst.,
+     2022. 2, 3
+[39] Vayer Titouan, Nicolas Courty, Romain Tavenard, Chapel
+     Laetitia, and Rémi Flamary. Optimal transport for structured
+     data with application on graphs. In Int. Conf. Mach. Learn.,
+     Jun 2019. 3
+[40] Quoc-Huy Tran, Ahmed Mehmood, Muhammad Ahmed,
+     Muhammad Naufil, Anas Zafar, Andrey Konin, and M. Zee-
+     shan Zia. Permutation-Aware Action Segmentation via Un-
+     supervised Frame-to-Segment Alignment, 2023. 1, 2, 5, 6,
+     7, 12
+[41] Titouan Vayer, Laetitia Chapel, Remi Flamary, Romain
+     Tavenard, and Nicolas Courty. Fused Gromov-Wasserstein
+     Distance for Structured Objects. Algorithms, 13, 2020. 3
+[42] Rosaura G. VidalMata, Walter J. Scheirer, Anna Kuk-
+     leva, David Cox, and Hilde Kuehne.               Joint Visual-
+     Temporal Embedding for Unsupervised Learning of Actions
+     in Untrimmed Sequences. In IEEE Wint. Conf. Applic. Com-
+     put. Vis., 2021. 1, 2, 5, 6, 7, 12
+[43] Hongteng Xu, Dixin Luo, Hongyuan Zha, and
+     Lawrence Carin Duke.            Gromov-Wasserstein Learning
+     for Graph Matching and Node Embedding. In Int. Conf.
+     Mach. Learn., 2019. 2
+[44] Fangqiu Yi, Hongyu Wen, and Tingting Jiang. Asformer:
+     Transformer for action segmentation. In Brit. Mach. Vis.
+     Conf., 2021. 2
+[45] Asano YM., Rupprecht C., and Vedaldi A. Self-labelling via
+     simultaneous clustering and representation learning. In Int.
+     Conf. Learn. Represent., 2020. 1
+
+
+                                                                      10
+A. Pseudo-code for ASOT                                                                                                                                                                                                                                                         (see Sec. A). We use the same Gromov-Wasserstein (GW)
+                                                                                                                                                                                                                                                                                radius parameter r across training and inference, which is
+   In Alg. 1, we present pseudo-code around the numer-                                                                                                                                                                                                                          set at 0.04 for all datasets except for desktop assembly,
+ical solver for our action segmentation optimal transport                                                                                                                                                                                                                       which is set at 0.02. We observed that desktop assembly
+(ASOT) algorithm. Our approach is based on projected mir-                                                                                                                                                                                                                       has smaller ground truth segments relative to video length,
+ror descent, similar to Peyre et al. [30]. We initialize the                                                                                                                                                                                                                    benefiting a lower value for r.
+coupling T element-wise as Tij = 1/(N K). Each itera-
+tion then involves two steps, given by
+                                                                                                                                                                                                                                                                                ASOT pseudo-labelling. The ASOT hyperparameters
+   1. Update step (Lines 6–16): The first-order update step                                                                                                                                                                                                                     used to generate pseudo-labels during the training phase
+      is computed as a mirror descent step under the KL-                                                                                                                                                                                                                        of our unsupervised action segmentation pipeline are de-
+      divergence. The update step at iteration t is given by                                                                                                                                                                                                                    scribed as follows. The GW structure weight α is set to
+      T̂t+1 = Tt ⊙ exp(−ϕ∇tT FASOT (C, Tt )), where ϕ >                                                                                                                                                                                                                         0.3 for all datasets except for Breakfast where α = 0.4 and
+      0 is a step size and                                                                                                                                                                                                                                                      furthermore, entropy regularization weight ϵ = 0.07 for all
+                                                                                                                                                                                                                                                                                datasets. Table 4 presents the remaining hyperparameters.
+              \mathcal {F}_\text {ASOT}(\mathbf {C}, \mathbf {T}, \epsilon ) \coloneqq &\mathcal {F}_\text {FGW}(\mathbf {C}, \mathbf {T}) + \nonumber \\ &\lambda \text {D}_\text {KL} (\mathbf {T}^\top \mathbf {1}_n \| \mathbf {q}) - \epsilon H(\mathbf {T}).
+                                                                                                                                                                                                                                                                     (8)        ASOT inference. The hyperparameters used to generate
+                                                                                                                                                                                                                                                                                segmentations from embeddings learned from our unsuper-
+   2. Projection step (Lines 10–15): The projection step                                                                                                                                                                                                                        vised learning pipeline are described as follows. First, we
+      involves ensuring the polytope constraints are satisfied.                                                                                                                                                                                                                 set the unbalanced weight λ to a low value (0.01) for all
+      This involves simply rescaling the rows of T, to sat-                                                                                                                                                                                                                     datasets. At inference, ASOT will segment according to the
+      isfy the frame-wise marginal constraint, i.e., Tijt+1 =                                                                                                                                                                                                                   underlying learned embeddings, and will not encourage a
+      pi T̂ijt+1 /(T̂t+1 1K )i .                                                                                                                                                                                                                                                more balanced assignment to action classes. Second, we set
+                                                                                                                                                                                                                                                                                α = 0.6 for all datasets except for Breakfast where α = 0.7,
+                                                                                                                                                                                                                                                                                because a higher value for α results in stronger temporal
+Algorithm 1 Action Segmentation Optimal Transport                                                                                                                                                                                                                               consistency due to heavier weighting of the GW structure
+                                                                                                                                                                                                                                                                                objective. Finally, we set ϵ = 0.04, since lower levels of
+Input: Video frame to action class affinity matrix Ck ∈
+                                                                                                                                                                                                                                                                                entropy regularization yields sharper segmentations.
+    RN ×K , derived from a video encoder and hyperparam-
+    eters α ∈ [0, 1], r ∈ [0, 1], λ ≥ 0, ϵ > 0, ϕ > 0,
+    niter > 0.                                                                                                                                                                                                                                                                  Representation learning. We set the learning rate at
+                                                                                               ×K
+Output: Soft assignment probabilities T⋆ ∈ RN                                                +    .                                                                                                                                                                             10−3 and weight decay to 10−4 for all datasets. We sam-
+                           k
+ 1: function ASOT(C , α, r, λ, ϵ, ϕ, niter )                                                                                                                                                                                                                                    ple a batch of 2 videos, where for each video, we sample
+ 2:      p ← N1 1N                                                       \triangleright  Frame marginals                                                                                                                                                                        256 frames randomly by partitioning each video into 256
+                 1
+ 3:      q← K      1K                             \triangleright  Balanced action marginals                                                                                                                                                                                     uniform intervals and sampling a single frame from each
+ 4:      Construct Cv , Ca using (5).                                                                                                                                                                                                                                           interval. Our MLP architecture has a single hidden layer
+ 5:      C = {Ck , Cv , Ca }                                                                                                                                                                                                                                                    with ReLU activations. The hidden layer size is 128 for all
+ 6:      T0 ← p ⊗ q                \triangleright  ⊗ denotes the outer product                                                                                                                                                                                                  datasets, with an output feature dimension of 40, with the
+ 7:      for t ← 0 to niter − 1 do                                                                                                                                                                                                                                              exception of YouTube Instructions (YTI), which have sizes
+ 8:          T̂t+1 = Tt ⊙ exp(−ϕ∇T FASOT (C, Tt ))                                                                                                                                                                                                                              32 and 32, respectively. Output features are l2 -normalized
+ 9:          Tijt+1 = pi T̂ijt+1 /(T̂t+1 1K )i ∀i, j                                                                                                                                                                                                                            before applying ASOT. The smaller model size from YTI
+10:      end for                                                                                                                                                                                                                                                                arises from the significantly higher dimensional input fea-
+11:      return Tniter                                                                                                                                                                                                                                                          tures compared to the remaining datasets.
+12: end function
+                                                                                                                                                                                                                                                                                                       BF YTI FS (M) FS (E) DA
+   We provide a full reference implementation for ASOT                                                                                                                                                                                                                                Unbalanced (λ) 0.1 0.12 0.15 0.11 0.16
+and training code at https://github.com/mingu6/                                                                                                                                                                                                                                       Global prior (ρ) 0.2 0.15 0.15 0.15 0.25
+action_seg_ot.                                                                                                                                                                                                                                                                        Num. epochs      15 10     30   30    30
+
+B. Additional Details for Unsupervised Exper-                                                                                                                                                                                                                                   Table 4. Hyperparameter settings for ASOT used to generate
+                                                                                                                                                                                                                                                                                pseudo-labels in the training phase of our unsupervised action seg-
+    iment                                                                                                                                                                                                                                                                       mentation pipeline. FS (M) and FS (E) represent the 50 Salads Mid
+  For both the training (pseudo-labelling) and inference                                                                                                                                                                                                                        and Eval splits, respectively.
+phases, we use 25 iterations for projected mirror descent
+
+
+                                                                                                                                                                                                                                                                           11
+Dataset 50 Salads (Mid) 50 Salads (Eval) Desktop Ass.                                                                                          DA      FS (Mid)           FS (Eval)                   DA       FS (Mid)    FS (Eval)
+                                                                                                                                    0.8                                                      0.8
+MoF (%)    (43.0, 1.9)     (56.4, 2.8)    (62.9, 2.8)
+                                                                                                                                    0.6                                                      0.6
+
+
+
+
+                                                                                                                                 F1
+
+
+
+
+                                                                                                                                                                                      F1
+                                                                                                                                    0.4                                                      0.4
+ Table 5. MoF results for five runs recorded as (mean, std. err.).
+                                                                                                                                    0.2                                                      0.2
+
+                                                                                                                                    0.0                                                      0.0
+                                                                                                                                                0.100 0.125 0.150 0.175 0.200                      0.02     0.04   0.06   0.08   0.10
+C. Experimental Setup (Supervised)                                                                                                                             λ                                                    r
+                                                                                                                                        (a) Balanc. assign. weight λ                                      (b) GW radius r
+    For the supervised example, the MS-TCN [28] architec-                                                                                      DA      FS (Mid)          FS (Eval)                    DA       FS (Mid)    FS (Eval)
+ture outputs logits L ∈ RN ×K directly instead of video                                                                              0.8                                                     0.8
+
+frame and action embeddings. We can transform these log-                                                                             0.6                                                     0.6
+
+
+
+
+                                                                                                                                 F1
+its into a cost matrix Ck using
+
+
+
+
+                                                                                                                                                                                      F1
+                                                                                                                                     0.4                                                     0.4
+
+                                                                                                                                     0.2                                                     0.2
+
+                                                                                                                                     0.0                                                     0.0
+                 C^k_{ij} = 2 \left ( 1 - \frac {L_{ij} - L_\text {min}}{L_\text {max} - L_\text {min}}\right ),    (9)                         0.2     0.4        0.6       0.8                   0.10     0.15   0.20   0.25   0.30
+                                                                                                                                                               α                                                   ρ
+                                                                                                                                                (c) GW weight α                              (d) Global temporal prior ρ
+where Lmax := maxi,j Lij and Lmin := mini,j Lij . This                                                                                         DA      FS (Mid)           FS (Eval)                   DA      FS (Mid)    FS (Eval)
+is a simple method for converting the logits which model a                                                                              0.8                                              0.8
+
+frame/action affinity into a cost matrix with elements scaled                                                                           0.6                                              0.6
+
+
+
+
+                                                                                                                                                                                      F1
+                                                                                                                                 F1
+between [0, 2].                                                                                                                         0.4                                              0.4
+
+    We then apply ASOT to the cost matrix derived per video                                                                             0.2                                              0.2
+
+                                                                                                                                        0.0                                              0.0
+with hyperparameters λ = 0.05, α = 0.4, ϵ = 0.06 and r =                                                                                        0.04    0.06       0.08      0.10              0.50         0.75   1.00   1.25   1.50
+0.01. We evaluate our method using 5-fold cross validation,                                                                                             ε (train)                                                  K
+similar to [28].                                                                                                                              (e) Entropy reg. ϵtrain                  (f) Ratio of learned/true actions
+
+                                                                                                                               Figure 7. Sensitivity analysis reporting F1-score on ASOT hyper-
+D. Additional Sensitivity Analysis                                                                                             parameters.
+    In addition to the sensitivity analysis under the MoF met-
+                                                                                                                                                                                                      DA       FS (Mid)   FS (Eval)
+ric presented in Fig. 5, we present additional results for F1-                                                                      0.5
+                                                                                                                                               DA      FS (Mid)           FS (Eval)
+                                                                                                                                                                                         0.5
+score and mIoU in Fig. 7 and 8, respectively. The results                                                                           0.4                                                  0.4
+                                                                                                                                 mIoU
+
+
+
+
+                                                                                                                                                                                      mIoU
+follow very similar trends to MoF, however it is notable in                                                                         0.3                                                  0.3
+                                                                                                                                    0.2                                                  0.2
+Fig. 8a that mIoU performance collapses to almost 0 for                                                                             0.1                                                  0.1
+λ = 0, whereas MoF does not (see Fig. 5a). This is espe-                                                                            0.0                                                  0.0
+                                                                                                                                                0.100 0.125 0.150 0.175 0.200                  0.02         0.04   0.06   0.08   0.10
+cially notable for the FS (Eval) dataset. This discrepancy                                                                                                     λ                                                    r
+between MoF and mIoU suggests the presence of unbal-                                                                                    (a) Balanc. assign. weight λ                                      (b) GW radius r
+anced classes within the datasets, especially FS (Eval).                                                                                       DA      FS (Mid)           FS (Eval)                   DA       FS (Mid)   FS (Eval)
+                                                                                                                                        0.5                                                  0.5
+                                                                                                                                        0.4                                                  0.4
+E. Reproducibility
+                                                                                                                                  mIoU
+
+
+
+
+                                                                                                                                                                                      mIoU
+
+
+
+
+                                                                                                                                        0.3                                                  0.3
+                                                                                                                                        0.2                                                  0.2
+    Our results in Tab. 1 and 2 were produced using one run,                                                                            0.1                                                  0.1
+consistent with prior works in unsupervised action segmen-                                                                              0.0                                                  0.0
+                                                                                                                                                0.2      0.4       0.6       0.8                   0.10     0.15   0.20   0.25   0.30
+tation [22, 23, 26, 36, 40, 42]. To show the robustness of our                                                                                                 α                                                   ρ
+methods, we used five runs on the 50 Salads and Desktop                                                                                         (c) GW weight α                              (d) Global temporal prior ρ
+Assembly datasets with different random seeds. Differing                                                                                       DA      FS (Mid)           FS (Eval)                   DA       FS (Mid)    FS (Eval)
+random seeds impact the network initialization and sam-                                                                              0.5                                                     0.5
+                                                                                                                                     0.4                                                     0.4
+pling of batch indices for our training pipeline. We report
+                                                                                                                                 mIoU
+
+
+
+
+                                                                                                                                                                                      mIoU
+
+
+
+
+                                                                                                                                     0.3                                                     0.3
+the results of this experiment in Table (mean, std. err.) for                                                                        0.2                                                     0.2
+the MoF metric (cf. Tab. 5).                                                                                                         0.1                                                     0.1
+                                                                                                                                     0.0                                                     0.0
+                                                                                                                                                0.04    0.06       0.08      0.10                  0.50     0.75   1.00   1.25   1.50
+                                                                                                                                                        ε (train)                                                  K
+                                                                                                                                              (e) Entropy reg. ϵtrain                  (f) Ratio of learned/true actions
+
+                                                                                                                               Figure 8. Sensitivity analysis reporting mIoU-score on ASOT hy-
+                                                                                                                               perparameters.
+
+
+
+
+                                                                                                                          12
+
