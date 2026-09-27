@@ -211,6 +211,18 @@ def _vq_occupancy(vq_module) -> dict:
                cluster_size_max=float(cluster_size.max()))
 
 
+def _fsq_occupancy(vq_module) -> dict:
+    """Fraction of the (post-norm, pre-tanh) diagnostic-batch activations
+    saturating the FSQ bound (|z| > 3 -> tanh(z) within 1% of +/-1). A high
+    fraction here means the reconstruction gradient into the encoder is
+    near zero and the codebook will collapse -- catch it at epoch 0, not
+    after a multi-hour downstream job reports "only 1 occupied prototype"."""
+    z = vq_module.last_pre_bound
+    if z is None:
+        return dict(saturation_frac=None)
+    return dict(saturation_frac=float((z.abs() > 3).float().mean()))
+
+
 def train_one_arm(model, save_dir: Path, features_path: Path, cfg: PilotConfig, seed: int,
                   epoch_orders: list[list[str]], arm: str, diagnostic_batch=None,
                   device: torch.device = torch.device("cpu"), deadline: float | None = None) -> TrainingLog:
@@ -238,18 +250,20 @@ def train_one_arm(model, save_dir: Path, features_path: Path, cfg: PilotConfig, 
 
     def checkpoint_and_diagnose(epoch: int):
         torch.save(model.state_dict(), save_dir / f"epoch-{epoch}.model")
-        if isinstance(model.vq, PatchFSQAdapter):
-            occ = dict(kind="fsq")
-        else:
-            occ = dict(kind="vq", **_vq_occupancy(model.vq))
-        occ.update(epoch=epoch, arm=arm)
-        log.occupancy_rows.append(occ)
         if diagnostic_batch is not None:
             batch_input, batch_mask = diagnostic_batch
             diag = gradient_diagnostics(model, batch_input.to(device), batch_mask.to(device),
                                         cfg.mse_loss_weight, cfg.commit_weight, cfg.joint_distance_recons)
             diag.update(epoch=epoch, arm=arm)
             log.gradient_rows.append(diag)
+        # gradient_diagnostics' forward call (above) is what populates
+        # model.vq.last_pre_bound for this checkpoint's FSQ saturation read.
+        if isinstance(model.vq, PatchFSQAdapter):
+            occ = dict(kind="fsq", **_fsq_occupancy(model.vq))
+        else:
+            occ = dict(kind="vq", **_vq_occupancy(model.vq))
+        occ.update(epoch=epoch, arm=arm)
+        log.occupancy_rows.append(occ)
 
     if 0 in cfg.checkpoint_epochs:
         checkpoint_and_diagnose(0)
@@ -540,9 +554,16 @@ def build_streams(extracted: dict[str, dict[str, dict]], vocabs: dict, cfg: Pilo
 
 
 def run_stream_downstream(stream_name: str, stream: dict, cfg: PilotConfig, seed: int,
-                          identity: dict, deadline: float | None, artifacts_dir: Path) -> dict:
+                          identity: dict, deadline: float | None, artifacts_dir: Path,
+                          contextualizer_device: torch.device | None = None) -> dict:
     """Categorical OT + contextual ASOT for one stream at one downstream
-    seed. Returns segmentation rows plus saved-artifact payloads."""
+    seed. Returns segmentation rows plus saved-artifact payloads.
+
+    `contextualizer_device` routes only the fresh Stage-B contextualizer's
+    training onto this device (GPU when available); the OT solves
+    (`fit_categorical_k`/`fit_continuous`/both final-solve ladders) stay on
+    `evaluate.DEVICE` (CPU) unconditionally, matching the historical
+    action_transport convention. Defaults to CPU if not given."""
     from script.fsq_reconstruction.evaluate import (
         DEVICE, categorical_final_ladder, contextual_embeddings, contextual_final_ladder, fit_categorical_k,
         per_code_pca_centers, rung_rows_to_dicts, train_contextualizer,
@@ -591,8 +612,9 @@ def run_stream_downstream(stream_name: str, stream: dict, cfg: PilotConfig, seed
     ctx = train_contextualizer(stream["ids"], stream["lengths"], frame_counts_by_name, cfg.num_codes, seed,
                                split_seed=at_config.SAMPLING_SEED, deadline=deadline,
                                max_steps=cfg.contextualizer_max_steps, eval_every=cfg.contextualizer_eval_every,
-                               patience_steps=cfg.contextualizer_patience_steps)
-    embeddings = contextual_embeddings(ctx.model, stream["ids"])
+                               patience_steps=cfg.contextualizer_patience_steps,
+                               device=contextualizer_device or torch.device("cpu"))
+    embeddings = contextual_embeddings(ctx.model, stream["ids"], device=contextualizer_device or torch.device("cpu"))
     fps_of, window_of = fps, d["patch_size"]
     cont_recs = []
     for n in names:
@@ -672,6 +694,10 @@ def run_required_pilot(cfg: PilotConfig, run_dir: Path, device: torch.device,
         if row["kind"] == "vq" and row["below_threshold"] / cfg.num_codes > cfg.replacement_warn_fraction:
             print(f"[WARN] vq epoch {row['epoch']}: {row['below_threshold']}/{cfg.num_codes} codes below "
                  "the dead-code threshold", flush=True)
+        if row["kind"] == "fsq" and row["saturation_frac"] is not None and row["saturation_frac"] > 0.5:
+            print(f"[WARN] fsq epoch {row['epoch']}: {row['saturation_frac']:.2f} of the diagnostic batch's "
+                 "pre-quantization activations are saturating the FSQ bound; the reconstruction gradient into "
+                 "the encoder is likely near zero and the codebook may collapse", flush=True)
 
     extracted = {
         "vq": extract_dataset(vq_model, features_path, d["patch_size"], d["num_features"], d["num_joints"],
@@ -687,18 +713,37 @@ def run_required_pilot(cfg: PilotConfig, run_dir: Path, device: torch.device,
                               converged=bool(vocab.kmeans.n_iter_ < vocab.kmeans.max_iter)))
     streams = build_streams(extracted, vocabs, cfg)
 
+    expected_rows_per_job = 2 * len(cfg.final_rungs)  # categorical_asot + contextual_asot, one row per rung
     segmentation_rows: list[dict] = []
+    done_job_ids: set[str] = set()
+    seg_path = run_dir / "segmentation.csv"
+    if seg_path.exists():
+        import csv
+        with seg_path.open(newline="", encoding="utf-8") as fh:
+            existing_rows = list(csv.DictReader(fh))
+        counts: dict[str, int] = {}
+        for r in existing_rows:
+            jid = f"{r['stream']}_s{r['downstream_seed']}"
+            counts[jid] = counts.get(jid, 0) + 1
+        done_job_ids = {jid for jid, n in counts.items() if n >= expected_rows_per_job}
+        segmentation_rows = [r for r in existing_rows if f"{r['stream']}_s{r['downstream_seed']}" in done_job_ids]
+        if done_job_ids:
+            print(f"[resume] {len(done_job_ids)} downstream job(s) already complete in {seg_path.name}, "
+                 f"skipping: {sorted(done_job_ids)}", flush=True)
+
     not_run: list[dict] = []
     for stream_name, stream in streams.items():
         for seed in cfg.downstream_seeds:
             job_id = f"{stream_name}_s{seed}"
+            if job_id in done_job_ids:
+                continue
             if deadline is not None and time.perf_counter() > deadline:
                 not_run.append(dict(job_id=job_id, reason="compute deadline reached"))
                 continue
             print(f"[downstream] {job_id} ...", flush=True)
             try:
                 result = run_stream_downstream(stream_name, stream, cfg, seed, identity, deadline,
-                                               run_dir / "artifacts")
+                                               run_dir / "artifacts", contextualizer_device=device)
             except DeadlineExceeded:
                 not_run.append(dict(job_id=job_id, reason="interrupted at a cooperative deadline check "
                                     "mid-job (no partial rows saved for this job)"))

@@ -119,9 +119,16 @@ class PatchFSQAdapter(nn.Module):
         self.num_embeddings = self.fsq.codebook_size
         d = len(levels)
         self.in_proj = nn.Linear(window * embedding_dim, d, bias=True)
+        # Raw SMQ latents are not unit-scale (HuGaDB patches run to |z| in the
+        # thousands), which saturates FSQ's tanh bound almost everywhere and
+        # kills the reconstruction gradient into the encoder from step one.
+        # A fixed (non-affine) LayerNorm keeps the tanh input at unit scale
+        # regardless of what in_proj/the encoder learn, so it can't drift
+        # back into saturation the way a learned affine norm could.
+        self.pre_quant_norm = nn.LayerNorm(d, elementwise_affine=False)
         self.out_proj = nn.Linear(d, window * embedding_dim, bias=True)
         self.tc_loss = torch.zeros(())  # zero, every forward call; FSQ has no temporal-consistency term
-        self.last_pre_bound = None  # [N_valid, d], saved for occupancy/saturation diagnostics
+        self.last_pre_bound = None  # [N_valid, d], post-norm pre-tanh activation, for saturation diagnostics
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor):
         """x: (B,T,D) float; mask: (B,T,D) float/bool, 1=valid, 0=pad.
@@ -144,11 +151,11 @@ class PatchFSQAdapter(nn.Module):
         valid_patches = x_patches[valid_patch_mask]
 
         flat = valid_patches.reshape(valid_patches.shape[0], W * D)
-        z = self.in_proj(flat)
+        z = self.pre_quant_norm(self.in_proj(flat))
         zhat_normalized = self.fsq.quantize(z)  # differentiable (STE); feeds the decoder
         with torch.no_grad():
             encoding_indices_valid = self.fsq.codes_to_indexes(zhat_normalized.detach())
-        self.last_pre_bound = self.fsq.bound(z).detach()
+        self.last_pre_bound = z.detach()
         recon_flat = self.out_proj(zhat_normalized)
         quantize_valid = recon_flat.reshape(-1, W, D)
 
