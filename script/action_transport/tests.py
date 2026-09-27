@@ -9,11 +9,11 @@ matrix, and it does not assert that unsupervised optimization always
 recovers ground truth.
 
 Coverage gaps, stated rather than silently skipped (instructions §6 asks for
-an honest status, not a faked one): this suite does not exercise atomic-write
-resume, cell deduplication, simulated deadline interruption, or CPU/CUDA
-numerical agreement (no CUDA device in this environment at authoring time).
-Those are straightforward but were not the numerically load-bearing
-contracts and are listed here as not yet covered rather than asserted.
+an honest status, not a faked one): this suite does not exercise crash
+recovery of atomic writes, a simulated mid-run deadline interruption,
+out-of-fold aggregation on real fold artifacts (only the fold-specific
+mapping it relies on), or CPU/CUDA numerical agreement. The resume guard
+against a foreign cells.csv is covered.
 """
 
 from __future__ import annotations
@@ -126,9 +126,8 @@ def test_solve_preserves_row_masses():
     p = p / p.sum()
     q = torch.full((C,), 1.0 / C, dtype=DTYPE)
     cost = torch.as_tensor(rng.random((L, C)), dtype=DTYPE)
-    t0 = p.unsqueeze(1) * q.unsqueeze(0)
     coeffs = transport.Coeffs(0.7, 0.3, 0.05, 0.07)
-    result = transport.solve_final(t0, cost, weights, p, q, coeffs, max_steps=50)
+    result = transport.solve_final(transport.cold_start_log(p, q), cost, weights, p, q, coeffs, max_steps=50)
     row_sums = result.t.sum(dim=1)
     assert_close(row_sums.numpy(), p.numpy(), atol=1e-9, msg="row masses must stay exactly p after solving")
 
@@ -142,8 +141,7 @@ def test_solve_single_window():
     weights = transport.build_kernel(1, 0, device)
     assert weights is None
     coeffs = transport.Coeffs(0.7, 0.3, 0.05, 0.07)
-    t0 = p.unsqueeze(1) * q.unsqueeze(0)
-    result = transport.solve_final(t0, cost, weights, p, q, coeffs, max_steps=50)
+    result = transport.solve_final(transport.cold_start_log(p, q), cost, weights, p, q, coeffs, max_steps=50)
     assert result.status in ("converged", "capped")
     assert_close(float(result.t.sum()), 1.0, atol=1e-9, msg="single-window mass")
 
@@ -311,7 +309,7 @@ def test_a0_equivariant_under_permutation():
     coeffs = transport.Coeffs(0.7, 0.0, 0.05, 0.07)
     fit_a = categorical.fit_categorical([rec], theta0, C, K, eta, coeffs, inner_steps=10, outer_cap=8,
                                         outer_patience=2, outer_reltol=1e-8, device=torch.device("cpu"))
-    final_a = categorical.infer_final(fit_a.theta, [rec], C, fit_a.t_state, coeffs, torch.device("cpu"),
+    final_a = categorical.infer_final(fit_a.params, [rec], C, categorical.categorical_cost_fn, fit_a.log_t_state, coeffs, torch.device("cpu"),
                                       max_steps=100, grad_tol=1e-6, rel_tol=1e-8, patience=3, backtrack_max=30)
 
     perm = permute.build_permutation(lengths, window, rng)
@@ -321,12 +319,62 @@ def test_a0_equivariant_under_permutation():
     assert_close(counts_perm, counts, atol=0, rtol=0, msg="frame-weighted counts must be permutation-invariant")
     fit_b = categorical.fit_categorical([rec_perm], theta0, C, K, eta, coeffs, inner_steps=10, outer_cap=8,
                                         outer_patience=2, outer_reltol=1e-8, device=torch.device("cpu"))
-    final_b = categorical.infer_final(fit_b.theta, [rec_perm], C, fit_b.t_state, coeffs, torch.device("cpu"),
+    final_b = categorical.infer_final(fit_b.params, [rec_perm], C, categorical.categorical_cost_fn, fit_b.log_t_state, coeffs, torch.device("cpu"),
                                       max_steps=100, grad_tol=1e-6, rel_tol=1e-8, patience=3, backtrack_max=30)
-    assert_close(fit_a.theta, fit_b.theta, atol=1e-8, rtol=1e-6, msg="A0 theta must be permutation-invariant")
-    restored_states = permute.restore_states(final_b.predictions["r0"], perm)
-    assert list(restored_states) == list(final_a.predictions["r0"]), \
+    assert_close(fit_a.params, fit_b.params, atol=1e-8, rtol=1e-6, msg="A0 theta must be permutation-invariant")
+    restored_states = permute.restore_states(final_b.states["r0"], perm)
+    assert list(restored_states) == list(final_a.states["r0"]), \
         "A0 raw states must match exactly after restoration (no coupling to permute)"
+
+
+def test_outer_objective_matches_returned_iterate():
+    """v1.6.1 regression (found by an external audit, 26 September 2026):
+    the outer stopping trace summed each recording's inner-solve objective
+    at the OLD params and only added the prior at the NEW params, i.e. it
+    logged sum_r N_r*F(T_new;theta_old) + prior(theta_new) instead of the
+    declared sum_r N_r*F(T_new;theta_new) + prior(theta_new) -- a mixed
+    parameter state that can only understate the true objective and could
+    trigger the outer-convergence check early.
+
+    This reproduces the audit's exact case (2 recordings, 30 windows, 15
+    frames/window, 60 fps, K=6, C=3, eta=60, one outer iteration, setting T)
+    and checks against its independently computed numbers."""
+    seed, n_rec, num_windows, window, fps, K, C, eta = 111, 2, 30, 15, 60, 6, 3, 60.0
+    rng = np.random.default_rng(seed)
+    recs = []
+    for i in range(n_rec):
+        codes = rng.integers(0, K, size=num_windows).astype(np.int32)
+        lengths = np.full(num_windows, window, dtype=np.int32)
+        recs.append(categorical.RecordingInput(f"r{i}", codes, lengths, fps, window))
+    theta0 = rng.dirichlet(np.ones(K), size=C)
+    coeffs = transport.Coeffs(config.SETTING_T.a, config.SETTING_T.beta, config.SETTING_T.lam, config.SETTING_T.eps)
+    fit = categorical.fit_categorical(recs, theta0, C, K, eta, coeffs, inner_steps=25, outer_cap=1,
+                                      outer_patience=1, outer_reltol=1e-12, device=torch.device("cpu"))
+    assert_close(fit.objective_trace[-1], 7.008690581479591, atol=1e-9,
+                msg="outer trace must equal the audit's independently reproduced full-iterate objective")
+
+
+def test_outer_objective_nonincreasing_across_iterations():
+    """With the fix, each outer iteration's logged objective (now the
+    correctly-evaluated full iterate) must not increase, on a case run for
+    several outer iterations -- the mixed-state bug had no such guarantee."""
+    rng = _rng(20)
+    C, K = 4, 30
+    eta = 8.0
+    window = 12
+    lengths = np.full(40, window, dtype=np.int32)
+    recs = [categorical.RecordingInput(f"r{i}", rng.integers(0, K, size=40).astype(np.int32), lengths, 50, window)
+           for i in range(3)]
+    counts = categorical.frame_weighted_counts(recs, K)
+    grouping = categorical.build_grouping(rng.normal(size=(K, 5)), counts, C, seed=111, is_kc_identity=False)
+    theta0 = categorical.build_theta0(grouping, counts, C, K, eta)
+    coeffs = transport.Coeffs(config.SETTING_T.a, config.SETTING_T.beta, config.SETTING_T.lam, config.SETTING_T.eps)
+    fit = categorical.fit_categorical(recs, theta0, C, K, eta, coeffs, inner_steps=15, outer_cap=12,
+                                      outer_patience=20, outer_reltol=1e-15, device=torch.device("cpu"))
+    trace = fit.objective_trace
+    assert len(trace) >= 5, "need several outer iterations to check monotonicity"
+    for prev, curr in zip(trace, trace[1:]):
+        assert curr <= prev + 1e-6, f"outer objective increased: {prev} -> {curr}"
 
 
 # --- reference parity ---------------------------------------------------------
@@ -369,7 +417,7 @@ def test_reference_parity_equal_mass():
         # ASOT's a=1-alpha, beta=alpha; equal-mass, ub_actions-only KL match.
         coeffs = transport.Coeffs(a=1 - 0.3, beta=0.3, lam=0.05, eps=0.07)
         t0 = p.unsqueeze(1) * q.unsqueeze(0)
-        result_ours = transport.solve_inner(t0, cost[0], weights, p, q, coeffs, max_accepted=25,
+        result_ours = transport.solve_inner(torch.log(t0), cost[0], weights, p, q, coeffs, max_accepted=25,
                                             backtrack_max=0, backtrack_tol=1e30)
         # backtrack_max=0/backtrack_tol=1e30 forces a fixed step size of 1.0
         # per accepted step with no rejection, matching the reference's own
@@ -384,11 +432,9 @@ def test_reference_parity_equal_mass():
         r_ours = (result_ours.t / p.unsqueeze(1)).numpy()
         diff = np.abs(r_ref - r_ours).max()
         print(f"[parity] max |R_ref - R_ours| = {diff:.3e}")
-        assert diff <= 2e-2, (
-            f"parity drift {diff:.3e} exceeds the declared tolerance; this compares different "
-            "unary conventions (ASOT's 1-cos vs a generic D here) and is a structural-term-only "
-            "check -- see README for the exact scope of this parity test"
-        )
+        # Instructions §5 tolerance. The residual difference (~1e-11) comes
+        # from the reference's log(T + 1e-12) versus our exact log T.
+        assert diff <= 1e-8, f"parity drift {diff:.3e} exceeds the declared 1e-8 tolerance"
     finally:
         torch.set_default_dtype(torch.float32)
 
@@ -398,11 +444,11 @@ def test_reference_parity_equal_mass():
 def test_evaluator_identity_and_permuted_labels():
     rng = _rng(11)
     gt = rng.integers(0, 3, size=200).astype(np.int32)
-    identity_score = evaluate.score_pooled([gt], [gt.copy()])
+    identity_score, _ = evaluate.score_pooled([gt], [gt.copy()])
     assert_close(identity_score["MoF"], 100.0, atol=1e-6, msg="identity prediction must score MoF=100")
     shuffled_map = {0: 2, 1: 0, 2: 1}
     relabelled = np.vectorize(shuffled_map.get)(gt).astype(np.int32)
-    relabelled_score = evaluate.score_pooled([gt], [relabelled])
+    relabelled_score, _ = evaluate.score_pooled([gt], [relabelled])
     assert_close(relabelled_score["MoF"], 100.0, atol=1e-6,
                 msg="Hungarian mapping must recover a pure relabelling")
 
@@ -413,6 +459,113 @@ def test_broadcast_to_frames_exact_coverage():
     states = np.array([1, 0, 1], dtype=np.int32)
     frames = evaluate.broadcast_to_frames(states, starts, lengths, frame_count=10)
     assert list(frames) == [1, 1, 1, 1, 1, 0, 0, 0, 1, 1]
+
+
+# --- v1.3.1 regressions ---------------------------------------------------------
+
+def _separated_costs(L=300, C=10, seed=0):
+    """Categorical-like costs whose optimum has entries far below 1e-12 --
+    the case where v1.3's log(T + 1e-12) made every final solve `capped`."""
+    rng = _rng(seed)
+    cost = rng.uniform(0.6, 1.0, (L, C))
+    cost[np.arange(L), rng.integers(0, C, L)] = 0.3
+    cost[rng.random((L, C)) < 0.2] = 2.5
+    return torch.as_tensor(cost, dtype=DTYPE)
+
+
+def test_final_solve_converges_with_tiny_entries():
+    """The v1.3 bug: entries below 1e-12 made the residual check unreachable,
+    so even the convex beta=0 problem was always `capped`. With exact logs:
+    beta=0 converges within the declared 500 steps from a cold start; with
+    the temporal term, convergence is genuine but linear and slower
+    (contraction ~0.99/step on this case), so it is checked with a larger
+    budget here. The production budget stays at the declared 500 steps; the
+    pipeline warm-starts final solves from the fitted state."""
+    L, C = 300, 10
+    cost = _separated_costs(L, C)
+    p = torch.full((L,), 1.0 / L, dtype=DTYPE)
+    q = torch.full((C,), 1.0 / C, dtype=DTYPE)
+    weights = transport.build_kernel(L, 4, torch.device("cpu"))
+    for setting in (config.SETTING_T, config.SETTING_E):
+        for beta, budget in ((0.0, config.FINAL_MAX_STEPS), (setting.beta, 4000)):
+            coeffs = transport.Coeffs(setting.a, beta, setting.lam, setting.eps)
+            result = transport.solve_final(transport.cold_start_log(p, q), cost, weights, p, q, coeffs,
+                                           max_steps=budget)
+            assert float(result.t.min()) < 1e-12, "test case must actually contain sub-1e-12 entries"
+            assert result.status == "converged", (
+                f"{setting.name} beta={beta}: {result.status} after {result.accepted_steps} steps, "
+                f"residual {result.residual:.2e}")
+            assert_close(result.t.sum(dim=1).numpy(), p.numpy(), atol=1e-10, msg="row masses")
+            if beta > 0:
+                warm = transport.solve_final(result.log_t, cost, weights, p, q, coeffs)
+                assert warm.status == "converged" and warm.accepted_steps <= 10, \
+                    "a warm start at the fixed point must converge within the patience window"
+
+
+def test_log_and_probability_objectives_agree():
+    rng = _rng(12)
+    L, C = 8, 3
+    t = torch.as_tensor(_random_t(L, C, rng), dtype=DTYPE)
+    cost = torch.as_tensor(rng.random((L, C)), dtype=DTYPE)
+    q = torch.full((C,), 1.0 / C, dtype=DTYPE)
+    weights = transport.build_kernel(L, 2, torch.device("cpu"))
+    args = (cost, weights, 0.7, 0.3, 0.05, 0.07, q)
+    manual = (0.7 * (cost * t).sum()
+              + 0.15 * (t * transport.conv_apply(weights, t.sum(1, keepdim=True) - t)).sum()
+              + 0.05 * (t.sum(0) * torch.log(t.sum(0) / q) - t.sum(0) + q).sum()
+              + 0.07 * (t * (torch.log(t) - 1)).sum())
+    assert_close(transport.objective_log(torch.log(t), *args), manual, atol=1e-12,
+                 msg="objective must equal the declared formula term by term")
+
+
+def test_subject_disjoint_uses_fold_specific_mapping():
+    """Two folds whose raw state ids are relabelled differently: per-fold
+    Hungarian recovers MoF 100; one global mapping could not."""
+    gt = np.array([0] * 50 + [1] * 50, dtype=np.int32)
+    fold0_pred = gt.copy()
+    fold1_pred = 1 - gt
+    metrics, mappings = evaluate.score_subject_disjoint(np.array([0, 1]), [gt, gt], [fold0_pred, fold1_pred])
+    assert_close(metrics["MoF"], 100.0, atol=1e-6, msg="fold-specific mapping")
+    assert set(mappings) == {"fold0", "fold1"}
+    pooled, _ = evaluate.score_pooled([gt, gt], [fold0_pred, fold1_pred])
+    assert pooled["MoF"] < 60, "a single global mapping should not reach 100 here"
+
+
+def test_segment_diagnostics_hand_computed():
+    pred = [np.array([0, 0, 1, 1, 1, 0], dtype=np.int32)]
+    gt = [np.array([5, 5, 5, 5, 5, 5], dtype=np.int32)]
+    d = evaluate.segment_diagnostics(pred, gt, ["S1"], fps=2)
+    assert d["pred_runs"] == 3 and d["gt_runs"] == 1 and d["run_ratio"] == 3.0
+    assert_close(d["pred_run_median_s"], 1.0, msg="runs of 2,3,1 frames at 2 fps -> median 1.0 s")
+    assert_close(d["gt_run_median_s"], 3.0, msg="one 6-frame run at 2 fps")
+    assert d["occupied_states"] == 2
+    assert_close(d["mi_state_subject"], 0.0, atol=1e-12, msg="one subject carries no information")
+
+
+def test_enumeration_counts_and_alternation():
+    pooled = config.enumerate_pooled_cells()
+    assert len(pooled) == 48 and len(config.enumerate_permutation_cells()) == 4
+    assert len(config.enumerate_subject_disjoint_cells()) == 192
+    blocks = [(c.normalize, c.dataset) for c in pooled[::12]]
+    assert blocks == [(False, "hugadb"), (False, "lara"), (True, "hugadb"), (True, "lara")], blocks
+    assert len({c.key() for c in pooled}) == 48, "cell ids must be unique"
+
+
+def test_resume_refuses_foreign_cells_csv():
+    import tempfile
+    from script.action_transport import run as sa_run
+    with tempfile.TemporaryDirectory() as tmp:
+        run_dir = Path(tmp)
+        (run_dir / "cells.csv").write_text("prediction_set_id,cell_key,MoF\nx,y,1\n", encoding="utf-8")
+        try:
+            sa_run._load_completed(run_dir)
+            raise AssertionError("expected SystemExit for a cells.csv with different columns")
+        except SystemExit:
+            pass
+        fresh = run_dir / "fresh"
+        fresh.mkdir()
+        sa_run._append_cells_csv(fresh, [{"prediction_set_id": "a"}])
+        assert sa_run._load_completed(fresh) == {"a"}, "a runner-written cells.csv must resume"
 
 
 TESTS = [
@@ -433,9 +586,17 @@ TESTS = [
     test_permutation_round_trip,
     test_permutation_preserves_counts,
     test_a0_equivariant_under_permutation,
+    test_outer_objective_matches_returned_iterate,
+    test_outer_objective_nonincreasing_across_iterations,
     test_reference_parity_equal_mass,
     test_evaluator_identity_and_permuted_labels,
     test_broadcast_to_frames_exact_coverage,
+    test_final_solve_converges_with_tiny_entries,
+    test_log_and_probability_objectives_agree,
+    test_subject_disjoint_uses_fold_specific_mapping,
+    test_segment_diagnostics_hand_computed,
+    test_enumeration_counts_and_alternation,
+    test_resume_refuses_foreign_cells_csv,
 ]
 
 

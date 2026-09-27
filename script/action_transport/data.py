@@ -120,7 +120,7 @@ class Tokenizer:
 def _cache_path(dataset: str, normalize: bool, protocol: str, fold: int | None, seed: int) -> Path:
     norm_part = "norm" if normalize else "raw"
     fold_part = "pooled" if fold is None else f"fold{fold}"
-    name = f"{dataset}_{norm_part}_{protocol}_{fold_part}_seed{seed}_v{config.PROTOCOL_VERSION}.npz"
+    name = f"{dataset}_{norm_part}_{protocol}_{fold_part}_seed{seed}_v{config.TOKENIZER_VERSION}.npz"
     return config.OUT_ROOT / "cache" / "tokenizers" / name
 
 
@@ -128,8 +128,31 @@ def build_or_load_tokenizer(loaded: LoadedDataset, arrays: list[np.ndarray], nor
                             protocol: str, fold: int | None, seed: int) -> Tokenizer:
     path = _cache_path(loaded.dataset, normalize, protocol, fold, seed)
     fit_idx = fit_indices(loaded, protocol, fold)
+    recording_names = np.asarray([m.name for m in loaded.metas])
+    cache_identity = loaded.core_dataset.cache_identity
     if path.exists():
         blob = np.load(path, allow_pickle=True)
+        # v1.6 (B3 fix): previously only checked per-recording window COUNTS
+        # and fit_indices, so a same-shaped but reordered or checkpoint-
+        # swapped dataset could silently pass. Now also checks recording
+        # NAMES in order and the checkpoint/cache identity string.
+        saved_names = blob["recording_names"] if "recording_names" in blob else None
+        saved_identity = str(blob["cache_identity"]) if "cache_identity" in blob else None
+        if saved_names is None or saved_identity is None:
+            raise RuntimeError(f"tokenizer cache {path} predates recording-identity checks; "
+                               "delete it to rebuild with the current identity fields")
+        if not np.array_equal(saved_names, recording_names):
+            raise RuntimeError(f"tokenizer cache {path} was built from a different or differently-ordered "
+                               "recording list; delete it or copy the matching cache")
+        if saved_identity != cache_identity:
+            raise RuntimeError(f"tokenizer cache {path} was built from a different checkpoint/latent cache "
+                               f"({saved_identity!r} != {cache_identity!r}); delete it or copy the matching cache")
+        window_counts_match = all(
+            len(codes) == len(meta.lengths) for codes, meta in zip(blob["codes_fine"], loaded.metas)
+        ) and len(blob["codes_fine"]) == len(loaded.metas)
+        if not window_counts_match:
+            raise RuntimeError(f"tokenizer cache {path} does not match this dataset's window grid; "
+                               "delete it or copy the matching cache")
         if tuple(int(i) for i in blob["fit_indices"]) == fit_idx:
             return Tokenizer(
                 dataset=loaded.dataset, normalize=normalize, seed=seed, protocol=protocol,
@@ -153,11 +176,11 @@ def build_or_load_tokenizer(loaded: LoadedDataset, arrays: list[np.ndarray], nor
         fit_sample_ids=prepared.fit_ids, terminal_windows=prepared.terminal_windows,
         n_fit_windows=len(prepared.fit_features),
     )
-    _save_tokenizer(path, tok)
+    _save_tokenizer(path, tok, recording_names, cache_identity)
     return tok
 
 
-def _save_tokenizer(path: Path, tok: Tokenizer) -> None:
+def _save_tokenizer(path: Path, tok: Tokenizer, recording_names: np.ndarray, cache_identity: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     codes_fine_obj = np.empty(len(tok.codes_fine), dtype=object)
     codes_fine_obj[:] = tok.codes_fine
@@ -171,7 +194,7 @@ def _save_tokenizer(path: Path, tok: Tokenizer) -> None:
         centers_fine=tok.centers_fine, centers_kc=tok.centers_kc,
         codes_fine=codes_fine_obj, codes_kc=codes_kc_obj, pca_windows=pca_obj,
         fit_sample_ids=tok.fit_sample_ids, terminal_windows=tok.terminal_windows,
-        n_fit_windows=tok.n_fit_windows,
+        n_fit_windows=tok.n_fit_windows, recording_names=recording_names, cache_identity=cache_identity,
     )
     import os
     os.replace(temp, path)

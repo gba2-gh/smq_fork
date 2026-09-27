@@ -1,7 +1,7 @@
 # Fine-to-coarse motion segmentation
 ## Three-stage research and implementation plan
 
-25 September 2026 | Version 1.3 | Planning document; no experiment launched
+26 September 2026 | Version 1.7 | Stage A executed (pooled); Stage B optimization study complete, proceeding to `stage_b_003` and Stage C
 
 ### Purpose
 
@@ -14,6 +14,10 @@ This plan fixes the three-stage order discussed with the project owner. Numerica
 Version 1.0 and the reviewed version 1.1 are preserved. Version 1.2 accepts the review's fixed-smoother, K=C, and continuous-feature controls; geometry-based initialization; efficient alternating optimization; and explicit numerical reporting. It defers the HMM, a second continuous-input contextualizer, subject classifiers, and BABEL execution. These additions would enlarge the architecture before the discrete pipeline is tested. REVIEW_RESPONSE_v1.2.md records each decision and the factual corrections.
 
 Version 1.3 corrects cosine scaling, makes permutation diagnostics preserve code–label correspondence, guards upstream kernel-width rounding, aligns optional batching instructions, and makes the budgeted-algorithm table the main report. See REVIEW_RESPONSE_v1.3.md; version 1.2 is archived. The three-stage architecture and planned Stage A fit count are unchanged.
+
+Version 1.4 records the pooled Stage A result (run `stage_a_pooled_002`, runner 1.3.1, complete 130/130 planned prediction sets; see §3.5) and adds a precommitted Stage B decision criterion (§4, "Precommitted decision criterion") before any Stage B result exists. It changes no coefficient, arm, budget, or stopping rule; it does not reopen Stage A. Runner 1.3.1 also fixed a convergence-check bug in the 1.3 runner (the exact-log solver in transport.py; the declared objective and coefficients are unchanged) and added the SMQ same-checkpoint baseline scoring that 1.3 omitted; see script/action_transport/README.md for the full change list.
+
+Version 1.6 responds to an external implementation/scientific audit of versions 1.4-1.5 (26 September 2026, `results/action_transport/audit_20260926/`). It softens §3.5's causal language on the fragmentation mechanism to state competing explanations rather than a diagnosed cause, and corrects §4 to make the copy-accuracy check a reported diagnostic rather than a gate on reaching Stage C (§4's "Version 1.6 correction"). It also records an outer-objective bookkeeping fix in the Stage A/B runners (transport.py, categorical.py, run_stage_b.py, stageb_optstudy.py, data.py) covering: the mixed-parameter-state stopping trace found by the audit; the validation-mask seed's process-dependence; resume/identity guards on both runners; a tokenizer-cache identity check by recording name and checkpoint hash, not only counts; and operational fixes (the final training minibatch was silently dropped each epoch; single-pass validation forward passes were unbatched; a cooperative deadline check now runs inside Stage B training, not only between cells). None of this changes the declared architecture, coefficients, arms, or budgets. See script/action_transport/README.md and README_STAGE_B.md for the complete lists.
 
 The principal objective remains learning coarse action structure from fine discrete motion sequences. Stage A supplies local consistency, Stage B learns context from code sequences, and Stage C combines them. A1-KC is a targeted control, not a vocabulary sweep. A-cont is a separate reference, not a continuous-input replacement for the proposed architecture. K=500, both normalization conditions, and all three seeds remain fixed.
 
@@ -191,7 +195,42 @@ Engineering completion requires reproducible artifacts and an honest status for 
 
 Temporal gains accompanied by worse segment metrics, near-single-state solutions, subject-aligned states, or poor transfer must remain visible. A negative result can still justify completing the planned context comparison; an invalid solver must be repaired before proceeding.
 
+### 3.5 Stage A result (pooled, run `stage_a_pooled_002`)
+
+Recorded here as the measured outcome that §4's Stage B decision criterion is set against, not as new guidance for Stage A itself. Full tables, seed-level values, and diagnostics are in `results/action_transport/stage_a_pooled_002/REPORT.md`; nothing below repeats or supersedes that artifact.
+
+Complete: 130/130 planned prediction sets, reproduced within 0.05 F1@50 points of the first (pre-fix) run. The SMQ same-checkpoint baseline, scored with the same evaluator, reproduces the segmodel audit exactly (HuGaDB MoF/F1@50 41.99/24.30; LARa 37.38/16.39).
+
+**The declared claim is not supported.** Under primary setting T:
+- A1 vs SMQ: A1 (F1@50 3.7-9.9 across dataset/normalization) is far below SMQ (16.4-24.3) on every configuration.
+- A1 vs A1-KC: mixed; A1 wins all three seeds only for HuGaDB-normalized.
+- A1 vs A0+filter: the fixed smoother wins in 3 of 4 dataset/normalization settings, including all three seeds on both LARa conditions.
+- A1 vs A-cont: A-cont wins on LARa in all three seeds (7-9 points); HuGaDB is mixed.
+
+**Observed fragmentation; competing explanations remain open.** On HuGaDB, every arm's median predicted run length is 0.25 s (one window), against SMQ's 2.0 s, with predicted-to-ground-truth run-count ratios of 5.8-12.6 (SMQ: 1.6). This fragmentation is a property of the saved predictions, not an inference.
+
+The following observations are consistent with a too-weak temporal term relative to per-window emission noise, but none of them isolates that as the cause, and this plan no longer asserts it as diagnosed:
+- Setting E (which changes four coefficients together -- beta/epsilon rises from about 4.3 to 15 while lambda/epsilon falls from about 0.71 to 0.25, not an isolated temporal-weight change) raises A-cont's HuGaDB F1@50 from about 5 to 22-24. The same large rise does not appear for categorical A1, so this does not establish the mechanism for the arm the declared claim is about.
+- The permutation diagnostic shows true chronological order helps A1 over shuffled order in every row, from a low base -- consistent with *some* working temporal signal, not with correctly identifying why it is insufficient.
+- Without per-recording normalization, A1's states on LARa carry more subject information than SMQ's do (MI(state;subject) 0.46 vs 0.12); normalization removes most of this without improving F1, which argues against subject leakage alone explaining the deficit, but does not identify what does.
+
+In each recording's final T-setting solve for the raw HuGaDB A1 cells, the solver itself reports convergence despite the poor F1. Simply relaxing the solver's stopping tolerance is therefore not a supported explanation either. An outer-objective bookkeeping defect was found and fixed after this run (see the version note below); it affected which iteration some fits stopped at, not the per-iteration updates of fits that ran to the iteration cap, and by itself is not evidence that it explains the score deficit.
+
+**Decision taken:** subject-disjoint Stage A is not run. Transfer of a method that loses to a training-free fixed filter in the pooled setting is not informative. This closes the Stage A grid as specified; §4 below sets what Stage B must show to continue the discrete-code direction.
+
 ## 4. Stage B — Masked-code contextual representation
+
+### Precommitted decision criterion (set before any Stage B result exists)
+
+Stage A's diagnosed failure is under-smoothing of noisy single-window emissions relative to the temporal term (§3.5), not evidence that discrete codes carry no usable action information (Q1/Q2 oracle-boundary diagnostics already showed they do). Stage B's contextual embeddings pool evidence over a much wider window (128 codes, about 32 s) than a single code, so they are the direct test of whether that noise, not the vocabulary, was the limiting factor.
+
+Before training B-code, this plan fixes what a positive result requires, so no threshold is chosen after seeing scores:
+
+- **Primary bar.** Contextual transport (Stage C, §5) on B-code embeddings must beat both A-cont and the SMQ baseline on F1@50, under setting T, on both datasets, pooled. All four comparisons must hold; this plan does not average across datasets to reach the bar.
+- **If B-code alone does not clear this bar but the context-only arm (no temporal term) already removes most of Stage A's fragmentation** (median predicted run length within 2x of the GT median, vs the 0.25 s / 14x gap observed in §3.5), that is a partial positive result: context, not transport, is doing the work. Report it as such; it does not satisfy the primary bar.
+- **If neither holds**, the discrete-code-plus-transport direction is not supported by this project's evidence at K=500, across the oracle-boundary diagnostics, the M1 decoder, and Stage A. Record this explicitly rather than continuing to a Stage C grid expansion. A separate, differently scoped study of temporal decoding on continuous SMQ features would be the evidence-supported next direction, not a silent continuation of this one.
+
+This criterion constrains interpretation, not implementation: Stage B and Stage C run exactly as specified below regardless of a prior belief about the outcome, and no architecture or coefficient changes after seeing Stage B's masked-code accuracy (§4's own checkpoint rule already requires this).
 
 ### Architecture and objective
 
@@ -216,6 +255,42 @@ Train the same three paired seeds for both normalization conditions and datasets
 **Subject-association diagnostics.** Keep diagnostics descriptive and inexpensive. Save frame-weighted subject-by-predicted-state counts and mutual information at evaluation. For contextual embeddings, sample at most 10,000 complete windows uniformly with seed 111, including recording/subject IDs. Report cosine 10-nearest-neighbor same-recording/same-subject rates before and after excluding same-recording candidates, exclude self-neighbors, and report the corresponding sampling-composition reference rates. This exposes local repetition and cross-recording association separately. Subject metadata are labels for these diagnostics, even though action annotations are not used. Do not use them to select checkpoints or settings. A fitted subject classifier is deferred; it would add split and optimization choices. None of these diagnostics isolates subject identity from action/recording conditions.
 
 The internal validation split excludes recordings from contextualizer gradient updates, but the frozen tokenizer may already have used them. Describe it as contextualizer validation, not an independently held-out tokenizer evaluation.
+
+### Version 1.5 change: training budget and a pre-Stage C sanity gate
+
+The first Stage B run (`stage_b_001`, 26 September 2026) trained all 12 models to the 50-epoch cap. The best epoch was 44-49 in every cell, so the patience rule never triggered and validation loss was still falling (about 1,000 optimizer steps per model). Every model's validation masked-code accuracy was below the nearest-unmasked-neighbor copy baseline:
+- HuGaDB raw: 0.46-0.48 vs 0.51
+- HuGaDB norm: 0.18-0.20 vs 0.26-0.27
+- LARa raw: 0.40-0.42 vs 0.52-0.54
+- LARa norm: 0.22-0.24 vs 0.29-0.30
+
+These numbers use no action label; only validation loss and code-prediction diagnostics motivated the change.
+
+Version 1.5 therefore:
+- **Raises the epoch cap from 50 to 500.** Patience (8), architecture, masking, optimizer and split are unchanged, so early stopping on fixed-mask validation loss now decides when training ends.
+- **Adds masked-code accuracy against the neighbor-copy baseline as a reported diagnostic.** (Version 1.6 correction below replaces the original wording, which called this a gate on entering Stage C.)
+- **Logs these checks automatically.** The runner records masked accuracy, whether training stopped by patience or by the cap, and embedding diagnostics on validation recordings: adjacent-window cosine vs the fraction of identical adjacent codes, and effective rank.
+
+`stage_b_001` is kept as a record and is not used by Stage C.
+
+### Version 1.6 correction: the copy-accuracy check is a diagnostic, not a Stage C gate
+
+Version 1.5 stated that a model below the neighbor-copy baseline "cannot test whether context helps" and should not proceed to Stage C. This contradicts §4's own statement, unchanged since version 1.0, that Stage C is the planned downstream test of usefulness: masked-code accuracy was never supposed to be a standalone acceptance claim for segmentation. Copy accuracy is a diagnostic of fine-code reconstruction. It is neither necessary nor sufficient for recovering coarse action segments: a model that reconstructs codes well by retaining nuisance-specific identity could score high on this diagnostic while learning nothing useful for segmentation, and a model that scores low could still contribute context Stage C's temporal transport can exploit. Only Stage C measures that.
+
+This correction was made after `stage_b_002` (11 of 12 cells below the copy baseline) prompted an optimization study, so the check itself was not a pre-experiment requirement in the sense the rest of this plan uses that phrase for Stage A; it is now stated as a revised, ongoing diagnostic rather than backdated as if it had been.
+
+Version 1.6 also fixes an implementation defect found by an external audit: the outer stopping objective for Stage A's alternating fit (categorical and continuous) evaluated the inner-solve terms at the pre-update parameters and only the prior term at the post-update parameters, logging a mixed-state value that could only understate the declared objective and could trigger the outer-convergence check early. Confirmed by an independent reproduction (2 recordings, 30 windows, K=6, C=3, one outer iteration: logged 17.305..., correct full-iterate value 7.009...); fixed with a regression test. 43 of the 52 `stage_a_pooled_002` fits ran to the full 50-iteration cap and have identical updates under the fix; the 9 that stopped early may have stopped at a different iteration under the corrected trace. This is an implementation fix, not a rerun of Stage A's result in §3.5; whether it changes any reported score is not yet established and is not asserted here.
+
+### Version 1.7: proceeding to Stage C, and operationalizing §4's criterion
+
+`optstudy_002`'s own `DESIGN.json` stop rule ("if no config beats copy on tuning accuracy in all cells, recommend stopping Stage B") was not met by any of the 32 tuning configurations: the selected `postLN_cosine_wu500_lr0.0003_alibi` fell short of copy on both LARa conditions (margins -0.013 and -0.005). This rule predates and conflicts with the version 1.6 correction above, which had already made copy accuracy a diagnostic rather than a gate. On 26 September 2026 the user decided to proceed to Stage C under the version 1.6 reading, on label-free evidence only (the tuning margins themselves, not any action score). This is recorded here as the decision actually taken, superseding the study's own stop rule for the purpose of continuing this plan.
+
+Before any Stage C action score exists, this version also fixes how §4's precommitted primary bar and partial-result clause are read, since neither said how normalization conditions and seeds enter a pass/fail verdict:
+
+- **Primary bar (operationalized).** One comparison per (dataset, normalization) under primary setting T, pooled: the three-seed mean F1@50. Contextual ASOT's three-seed mean must exceed both A-cont's three-seed mean (same dataset/normalization/seeds, from `stage_a_pooled_002`) and the same-checkpoint SMQ F1@50 (HuGaDB 24.30, LARa 16.39). The bar is met only if all 8 comparisons (2 datasets x 2 normalizations x {A-cont, SMQ}) hold; per §4's own rule this plan does not average across datasets or normalizations to reach it. Seed-level win counts are reported beside every mean; no significance test is applied at n=3.
+- **Partial-result clause (operationalized).** "Removes most of the fragmentation" means the context-only arm's (beta=0) three-seed mean of `pred_run_median_s / gt_run_median_s` lies in [0.5, 2] in every (dataset, normalization) under T. Reported as partial only if the primary bar is not met.
+
+Stage B's freeze of the selected configuration (`stage_b_003`, training the identical configuration on `stage_b_002`'s official split for all 12 cells) and the Stage C implementation are specified in `STAGE_C_AGENT_INSTRUCTIONS.md`.
 
 ### Stage B checkpoint
 
@@ -252,7 +327,7 @@ Report the complete five-metric matrix, matched seed differences, downstream sub
 
 **What each comparison can establish.** Stage A can test A1 versus A1-KC under a shared decoder family. Stage C tests adding context at K=500 and adding transport to that context. Because there is no K=C contextualizer, beating A1-KC with Stage C cannot isolate vocabulary size: context also changed. Preserve this boundary rather than adding another contextualizer grid.
 
-Report F1@50 paired differences and all five metrics under primary T, across the declared seeds and both datasets. Show E directions separately. Restrict transfer claims to completed subject-disjoint runs. A strong positive result requires agreement across the relevant controls and no concealed collapse or numerical failure; it is not a pre-written publication conclusion. A-cont matching or exceeding A1 means no segmentation advantage over this continuous competitor was demonstrated, not that discretization has no possible value.
+Report F1@50 paired differences and all five metrics under primary T, across the declared seeds and both datasets. Show E directions separately. Restrict transfer claims to completed subject-disjoint runs. A strong positive result requires agreement across the relevant controls and no concealed collapse or numerical failure; it is not a pre-written publication conclusion. A-cont matching or exceeding A1 means no segmentation advantage over this continuous competitor was demonstrated, not that discretization has no possible value. Apply §4's precommitted decision criterion first: it was fixed before Stage B ran and takes precedence over any new post hoc reading of the Stage C table.
 
 **Where the field stands.** The current unmatched published references are:
 

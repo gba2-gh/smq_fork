@@ -20,7 +20,12 @@ LOCAL_ASOT_CLONE = Path(r"C:\Users\gzaz976\Documents\repo\Behaviour\action_seg_o
 ASOT_PINNED_COMMIT = "0c4c86b1037eb4c3e262197aeee115b31e220c9d"
 
 # Protocol/artifact-identity version. Bump on any numerical-contract change.
-PROTOCOL_VERSION = "1.3"
+# 1.3.1: implementation fixes only (log-domain solver with exact entropy
+# gradient, SMQ baseline scoring, saved raw states and diagnostics). The
+# declared objective, coefficients, arms, and stopping rules are unchanged.
+PROTOCOL_VERSION = "1.3.1"
+# Tokenization did not change in 1.3.1, so v1.3 tokenizer caches stay valid.
+TOKENIZER_VERSION = "1.3"
 
 DATASETS = ("hugadb", "lara")
 SEEDS = (111, 222, 1538574472)
@@ -33,6 +38,11 @@ NUM_ACTIONS = {"hugadb": 10, "lara": 8}  # C, including background
 K_FINE = 500
 
 NORMALIZATIONS = (False, True)  # per-recording z-score off / on
+
+CHECKPOINT_SHA256 = {
+    "hugadb": "22dfd5639c718177c12bc48debf67371c4bf7ca64af2d7de4e83ebacae55d7d2",
+    "lara": "a45392ad30e27bda400adcab541aba087e4ae56b68837547cc65ca77ff5bfa65",
+}
 
 
 @dataclass(frozen=True)
@@ -127,9 +137,11 @@ class CellId:
 
 
 def enumerate_pooled_cells() -> list[CellId]:
+    """Alternate datasets and complete three paired seeds per configuration
+    (instructions §3): hugadb/raw, lara/raw, hugadb/norm, lara/norm."""
     cells = []
-    for dataset in DATASETS:
-        for normalize in NORMALIZATIONS:
+    for normalize in NORMALIZATIONS:
+        for dataset in DATASETS:
             for seed in SEEDS:
                 for arm in FITTED_ARMS:
                     cells.append(CellId(dataset, normalize, seed, "pooled", None, arm))
@@ -143,14 +155,30 @@ def enumerate_permutation_cells() -> list[CellId]:
 
 
 def enumerate_subject_disjoint_cells(n_folds: int = 4) -> list[CellId]:
+    """Same alternation as pooled; all four folds of a seed stay together
+    because subject-disjoint scoring maps each held-out fold separately and
+    then aggregates over all out-of-fold recordings."""
     cells = []
-    for dataset in DATASETS:
-        for normalize in NORMALIZATIONS:
+    for normalize in NORMALIZATIONS:
+        for dataset in DATASETS:
             for seed in SEEDS:
-                for fold in range(n_folds):
-                    for arm in FITTED_ARMS:
+                for arm in FITTED_ARMS:
+                    for fold in range(n_folds):
                         cells.append(CellId(dataset, normalize, seed, "subject_disjoint", fold, arm))
     return cells
+
+
+SMQ_BASELINE_ARM = "smq_baseline"
+
+
+def smq_baseline_ids(protocol: str) -> list[tuple[str, str]]:
+    """(dataset, prediction_set_id) for the separately identified,
+    fit-free SMQ same-checkpoint scoring jobs (one per dataset)."""
+    return [(dataset, f"{dataset}_{protocol}_{SMQ_BASELINE_ARM}") for dataset in DATASETS]
+
+
+def setting_of(prediction_set_id: str) -> str:
+    return prediction_set_id.rsplit("__", 1)[-1]
 
 
 def prediction_set_ids(cell: CellId) -> list[str]:
