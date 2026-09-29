@@ -1,0 +1,1134 @@
+                                                                                                                                                                embeddings          embeddings
+
+
+
+                                                                                                                                 Untrimmed
+
+                                                                                                                                                                                                         ction
+                                                                                                                               activityvideos
+                                                                                                                                                                                                       prototype
+                                        IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                                shift update    1
+
+
+                                                                                                                                                              action prototypes
+                                                                                                                                      ...
+
+
+                                           D-CLOT: Double Closed Loop Optimal Transport
+                                               for Unsupervised Action Segmentation
+                                                                                             Elena Bueno-Benito, Mariella Dimiccoli
+
+
+
+                                           Abstract—Optimal transport (OT) has emerged as an effective
+                                        framework for unsupervised action segmentation. Yet, in existing
+                                        OT-based methods, the latent action prototypes that define the                        Initial frame
+                                                                                                                                                  frame         segment           refined frame
+                                        OT costs are not re-estimated from the refined frame geometry.                       embeddings
+                                                                                                                                                embeddings    embeddings          embeddings
+
+                                        Instead, they evolve solely through gradients from the pseudo-
+                                                                                                                               Untrimmed
+
+                                        label loss. We identify this representation–prototype inconsistency                  activityvideos
+                                                                                                                                                                                                  Graph constrained
+
+
+                                        as a central bottleneck, particularly around ambiguous transi-                                                                                             prototype shift
+
+                                                                                                                                                                                                    computation
+
+                                        tions and for short or infrequent actions. To address this issue,
+                                        we build on the recently introduced CLOT, which refines frame
+                                        embeddings based on estimated segment embeddings, and further                                                        action prototypes
+                                                                                                                                    ...
+                                        re-estimates the action prototypes from the refined frame embed-
+                                        dings. Specifically, we introduce a graph-constrained module that
+                                        regularizes the OT-refined frame and segment representations by
+arXiv:2608.05877v1 [cs.CV] 6 Aug 2026
+
+
+
+
+                                        preserving the local neighborhood geometry of the encoder out-                      Fig. 1. Overview of the proposed D-CLOT framework. Given precomputed
+                                        put. An action-embedding refinement step then periodically re-                      frame embeddings X from untrimmed videos, the CLOT loop refines frame-
+                                        anchors the prototypes to this stabilized representation geometry.                  and segment-level representations through three OT-based alignment stages,
+                                        We study two instantiations that share the same backbone, graph                     producing frame embeddings F, segment embeddings S, refined frame
+                                        module, and objective: D-CLOT updates the prototypes using                          embeddings FR , and their associated pseudo-labels. D-CLOT extends this
+                                        k-means, whereas D-CLOTB updates them as OT barycenters                             refinement to the action prototypes A, by computing their shift on a stabilized
+                                        weighted by the refined transport plan, yielding an assignment-                     representation geometry, obtained through a graph regularization term. The
+                                        aware prototype update consistent with the current transport                        blue boxes indicate learnable variables.
+                                        geometry. Across five established benchmarks, both variants                         ASOT [13] removed the need for a known action order by en-
+                                        improve segment-level quality over CLOT, with per-video gains
+                                        of up to +12.7 F1 and +10.2 mIoU (YTI) and activity-level                           forcing temporal consistency directly in the transport problem.
+                                        gains of up to +8.9 F1 (FS-Eval). We further establish the                          HVQ [15] improved short-action detection via hierarchical
+                                        first unsupervised action-segmentation baseline on Assembly101,                     vector quantization. VASOT [14] added cross-video corre-
+                                        a procedural and substantially more fine-grained benchmark                          spondences as regularisation. CLOT [16] unifies these threads
+                                        than those commonly used in prior work. Extensive ablations                         through a multi-level cyclic mechanism: frame embeddings are
+                                        and sensitivity analyses demonstrate that the two refinement
+                                        mechanisms are complementary and robust. 1                                          aligned to action prototypes, a parallel decoder infers segment
+                                                                                                                            embeddings from the aligned sequence, and the resulting
+                                           Index Terms—Unsupervised learning, temporal action segmen-
+                                                                                                                            segment structure is propagated back to the frame domain via
+                                        tation, optimal transport, untrimmed videos.
+                                                                                                                            cross-attention before a final OT alignment.
+                                                                                                                               This cyclic formulation leaves an asymmetry unaddressed:
+                                                                   I. I NTRODUCTION                                         while frame and segment representations are iteratively re-
+                                           Temporal action segmentation assigns an action label to                          fined, the action embeddings A that define the transport costs
+                                        each frame of an untrimmed video and underlies downstream                           at every stage are not re-estimated from this refined geometry.
+                                        tasks such as activity recognition and procedural video under-                      They are initialised once via k-means and thereafter evolve
+                                        standing [1]–[3]. Although fully supervised methods achieve                         only through the classification gradient, so as OT refinement
+                                        the strongest performance, they require costly frame-level                          re-organises the frame representation space, the prototypes
+                                        annotations [4], [5], motivating weakly supervised and fully                        meant to organise it can fall behind, a representation–prototype
+                                        unsupervised alternatives [6]–[8]. Unsupervised action seg-                         inconsistency. This is most damaging around ambiguous tem-
+                                        mentation aims to discover recurring actions and their temporal                     poral transitions, where refined embeddings of adjacent frames
+                                        boundaries without manual labels. Classical approaches first                        from different actions overlap, and for short or infrequent
+                                        learn frame representations and then group them into action                         actions, whose limited transport mass is easily absorbed by
+                                        segments through clustering or temporal modeling [9]–[11].                          dominant modes. Moreover, since the refinement stages op-
+                                           A recent and effective line of work casts this joint prob-                       timise purely for the OT-induced classification loss, nothing
+                                        lem as optimal transport (OT), aligning frame representations                       prevents them from introducing associations between frames
+                                        to latent action embeddings through a soft transport plan                           that were not neighbours in the original encoder geometry.
+                                        that doubles as a pseudo-label for self-training [12]–[14].                            We address this problem with D-CLOT, which leaves the
+                                                                                                                            CLOT backbone and its three-stage OT objective intact,
+                                          The authors are with the Institut de Robòtica i Informàtica Industrial, CSIC-   while introducing two successive operations. First, it stabi-
+                                        UPC, Barcelona, Spain (e-mail: {ebueno, mdimiccoli}@iri.upc.edu).
+                                          1 Code, checkpoints, and V-JEPA2 features for Breakfast and Assembly101           lizes the refined frame and segment representations through
+                                        will be released.                                                                   a graph-constrained regularizer that encourages their local
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                      2
+
+
+
+neighbourhood structure to remain consistent with that of the     Section IV describes the validation protocol and discusses
+encoder output. Second, it periodically re-anchors the action-    experimental results. Finally, Section V concludes the paper.
+embedding to this stabilized representation geometry, thereby
+mitigating the drift that can arise when they are updated                                II. R ELATED WORKS
+solely through gradient descent. The proposed refinement is       A. Temporal action segmentation
+general and admits multiple prototype-update strategies. We          Fully supervised action segmentation methods remain the
+study two instantiations that share the same backbone, graph      most reliable but require costly data annotations [21]–[24].
+module, and objective. D-CLOT refreshes A by applying k-          To improve scalability and practicality, research has increas-
+means to the pooled stabilized representations, providing a       ingly shifted towards weakly-supervised [8], [25]–[28] and
+lightweight, assignment-agnostic correction. In contrast, D-      unsupervised approaches [9]–[15], [29]–[34], aiming to reduce
+CLOTB updates each prototype as the OT barycenter of the          reliance on labeled data while maintaining competitive seg-
+stabilized representations, weighted by the soft mass of the      mentation performance.
+refined transport plan, yielding an assignment-aware update          As the estimated clusters lack semantic labels, the evalu-
+consistent with the current transport geometry. Since the two     ation process requires finding the Hungarian correspondence
+variants differ only in their prototype re-estimation strategy,   between the clusters and the actual action classes. The Hun-
+their comparison isolates the effect of assignment awareness      garian matching can be performed for video-level segmenta-
+on prototype refinement. We also broaden the empirical scope      tion [29], [32], [33], [35], [36], activity-level segmentation [9]–
+of the closed-loop OT paradigm as we move beyond the              [14], [30], [34], or for a global scope across an entire set of
+cooking and instructional domain with a new evaluation on As-     videos [9], [11], [28], [30]. Depending on the hierarchical level
+sembly101 [17], a large-scale, fine-grained procedural-activity   used, methods aim to improve segmentation through these
+dataset. We define a controlled subset over 15 toy-assembly       correspondences.
+categories and two camera views, and extract V-JEPA 2 fea-        Unsupervised video-level action segmentation focuses on
+tures for it. With 11–42 fine-grained actions per activity, far   processing individual videos independently, without relying
+more than Breakfast (BF) [18], YouTube Instructions (YTII)        on predefined activity categories. Existing approaches can be
+[19], 50Salads (FS) [20], or Desktop Assembly (DA) [12], this     broadly categorized into representation learning methods and
+subset is a considerably harder testbed for unsupervised action   clustering-based methods. Representation learning approaches
+segmentation. We evaluate D-CLOT on five datasets under           aim to learn robust action features before applying a clustering
+activity- and video-level Hungarian matching, with an ablation    algorithm. LSTM+AL [35] predicts future frames and assigns
+isolating the graph module at the frame and refined-frame         segmentation boundaries based on prediction errors, while
+levels and the action-embedding refinement step, across both      TSA [29] introduces a contrastive learning framework that em-
+instantiations. The contributions of this paper are as follows:   ploys a triplet selection strategy. Clustering-based approaches
+                                                                  directly segment videos using similarity metrics. While clus-
+  • We identify a representation-prototype inconsistency in
+                                                                  tering has been underexplored in action segmentation, recent
+    CLOT: the latent action embeddings that define the OT
+                                                                  work on TW-FINCH [33] incorporates temporal proximity
+    costs are not re-estimated as the refined frame and seg-
+                                                                  alongside semantic similarity for improved clustering. Sim-
+    ment representations evolve.
+                                                                  ilarly, ABD [36] detects action boundaries by measuring
+  • We propose an action-embedding refinement step that
+                                                                  adjacent frame similarities, and OTAS [32] enhances boundary
+    periodically re-estimates the latent prototypes from the
+                                                                  detection by incorporating object-centric features.
+    refined frame embeddings FR and blends the result-
+                                                                  Unsupervised activity-level action segmentation tradition-
+    ing estimates with the current prototypes. Together
+                                                                  ally follows a two-step pipeline: first, learning action repre-
+    with the graph constraint described below, this closes
+                                                                  sentations in a self-supervised manner, and then clustering the
+    the representation–prototype loop without modifying the
+                                                                  learned embeddings, typically assuming a predefined number
+    CLOT backbone or its training objective.
+                                                                  of clusters. Classical methods strongly rely on temporal reg-
+  • We introduce a graph-constrained regularization module
+                                                                  ularization to model the sequential nature of activities [9].
+    that stabilizes the OT-refined frame and segment repre-
+                                                                  This idea has been further refined through encoder-decoder
+    sentations by preserving the local neighborhood structure
+                                                                  architectures, incorporating either visual reconstruction losses
+    of the encoder’s feature space.
+                                                                  (VTE) [10] or discriminative embedding losses (UDE) [37] to
+  • We study two instantiations of the proposed refinement:
+                                                                  enhance clustering performance. Other methods have framed
+    D-CLOT, which uses a k-means-based prototype update,
+                                                                  the problem as a self-supervised learning task, where ac-
+    and D-CLOTB , which updates prototypes as OT barycen-
+                                                                  tion prototypes are discovered via auxiliary classification
+    ters weighted by the refined transport plan. Both vari-
+                                                                  objectives [11], [30]. For instance, CAD [30] introduced a
+    ants achieve state-of-the-art performance on YTII [19],
+                                                                  framework that identifies action prototypes using an activity
+    FS [20], DA [12], and BF [18].
+                                                                  classification task, while ASAL [11] proposed a method that
+  • We establish the first unsupervised action-segmentation
+                                                                  distinguishes between valid and invalid action orderings based
+    baseline on Assembly101 [17], a large-scale, procedural,
+                                                                  on shuffled segment predictions.
+    fine-grained testbed.
+                                                                     Recently, OT has emerged as a powerful tool for jointly
+The following section reviews related work. Section III intro-    learning action representations and pseudo-labels through self-
+duces the proposed approach and details its two instantiations.   training, enabling effective feedback between representation
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                         3
+
+
+
+learning and clustering, while directly optimizing for action         [44] enforces dense, grouping-consistent codings, and later
+segmentation. TOT [12] introduced a temporal OT formulation           work adds temporal structure, noise robustness, and outlier
+that generates pseudo-labels from predicted cluster assign-           modelling [45]. Such self-expressive models remain sensi-
+ments. However, this approach assumes fixed action ordering           tive to the input representation: noisy or ambiguous features
+across all videos and uniform label assignment, contradicting         corrupt the learned affinity. Graph-constrained regularization
+the natural variability and long-tailed distribution of action        mitigates this by letting an auxiliary representation adapt to the
+labels. UFSA [34] addressed these limitations by incorporating        clustering objective while preserving the local neighbourhood
+frame- and segment-level cues from transcripts, allowing for          geometry [46]. In human motion segmentation: Dimiccoli et
+action permutations within activities and non-uniform label           al. [47] anchor jointly learned features and affinities to the
+assignments. However, it still requires prior knowledge of an         original neighbourhood structure, while TVSH [48] imposes a
+estimated action order to infer the segmentation.                     graph total-variation penalty that keeps the embedding smooth
+   To overcome this constraint, ASOT [13] introduced an OT-           within segments yet sharp at boundaries and refines it from
+based method capable of producing temporally consistent seg-          the segmentation output. These methods refine a static repre-
+mentations without any prior assumptions about action order.          sentation and derive the clustering from it. We differ in two
+This makes it particularly suited for both pseudo-labeling            respects: 1) we graph-regularize OT-refined frame features to
+and decoding. However, ASOT enforces a strong structural              obtain reliable geometry for updating latent action prototypes,
+prior, limiting its ability to detect short-duration actions, which   and 2) we close the representation–prototype loop, maintaining
+are critical in many real-world applications. More recently,          their mutual consistency throughout refinement.
+HVQ [15] tackled this issue by using a hierarchical vector
+quantization-based approach, significantly improving short-
+action detection. However, its learned codebook representing          D. Prototype and barycentric refinement
+action classes has limited generalization capabilities compared
+to ASOT, since it lacks explicit feedback between the repre-             Prototype refinement is widely used in unsupervised repre-
+sentation and clustering. In a related direction, VASOT [14]          sentation learning to reduce representation drift and improve
+extends the OT-based paradigm by jointly addressing video             cluster consistency. Methods such as DeepCluster [49] peri-
+alignment and action segmentation, leveraging cross-video             odically update prototypes with k-means, while SwAV [50]
+correspondences to regularize the learned action representa-          integrates prototype assignments into online training through
+tions. To jointly address ASOT’s structural rigidity and HVQ’s        balanced clustering constraints. However, these methods are
+lack of representation-clustering feedback, CLOT [16] intro-          not designed for temporal action segmentation, where pro-
+duced a closed-loop OT framework with a multi-level cyclic            totypes define the assignment geometry across temporally
+feature learning mechanism, in which frame and segment                structured and duration-imbalanced actions. D-CLOT updates
+embeddings are iteratively refined through cross-attention and        A using k-means centroids, providing a simple prototype
+reconciled through three coupled OT problems.                         correction aligned with the current representation space. D-
+                                                                      CLOTB instead updates A as barycenters of the refined
+B. Optimal transport for structured prediction.                       features weighted by the OT transport plan [51], [52]. This
+                                                                      barycentric update is assignment-aware, since each frame
+   OT has become a key framework in machine learning                  contributes according to its soft OT mass, making the refined
+for measuring distributional discrepancies, particularly in un-       prototypes consistent with the current transport geometry.
+supervised clustering and representation learning [12]–[14],
+[16], [34]. Unlike traditional probability metrics, Wasserstein
+distance preserves the geometric structure of distributions,
+                                                                                           III. M ETHODOLOGY
+making it well-suited for structured prediction tasks [38], [39].
+However, its computational complexity limits its scalability.            We introduce D-CLOT, illustrated in Fig 2, a graph-
+To address this, projection-based OT (POT) methods, such              constrained action-refinement framework for unsupervised
+as Sliced Wasserstein (SW) distance, efficiently approximate          temporal action segmentation. Given a set of untrimmed
+OT by projecting high-dimensional distributions onto lower-           videos, the goal is to infer frame-level action assignments
+dimensional subspaces. SW distance has been successfully              without using frame-level labels, transcripts, or action-order
+applied to point-cloud processing, color transfer, Gaussian           constraints during training. The proposed method builds upon
+Mixture Model learning, and domain adaptation, making it              CLOT [16], which establishes a cyclic interaction between
+a practical alternative for large-scale applications [40], [41].      frame-level and segment-level representations through three
+                                                                      optimal transport (OT) problems, and extends it by regular-
+C. Graph-constrained regularization and subspace clustering           izing the refined frame geometry and explicitly updating the
+   Subspace clustering assumes that high-dimensional samples          latent action embeddings from this refined representation.
+lie in a union of low-dimensional subspaces. Under the self-             Sections III-B and III-E recall the CLOT backbone and
+expressiveness principle, each sample is reconstructed from           OT formulation for completeness; Sections III-C and III-D
+other samples, yielding a coding matrix C with X = XC and             introduce the graph-constrained regularization and action-
+diag(C) = 0, from which an affinity matrix is built for spectral      embedding refinement modules, which constitute the contri-
+clustering [42]. SSC [43] promotes sparse affinities, LSR             butions of this extension.
+              peel_cucumber      mix_ingredients ...
+
+
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                              4
+
+
+
+
+                                                 Positional 
+
+                                                 Encoding
+
+
+                MLP with 
+                                            Parallel        Cross-
+           feature dispatching                                        Decoder        attention
+
+
+
+
+                                                                ...
+
+
+
+
+           cut_lettuce    add_vinegar     add_oil
+            peel_cucumber     mix_ingredients ...
+
+
+Fig. 2. Diagram of the D-CLOT architecture. As in CLOT, an MLP encoder with feature dispatching produces frame embeddings F, a parallel decoder
+estimates segment embeddings S, and a cross-attention module propagates segment-level information back to the frame domain, yielding refined frame
+embeddings FR . Three OT problems are solved at the frame, segment, and refined-frame levels, producing the pseudo-label transport plans T, TS , and TR ,
+respectively. D-CLOT further introduces a graph-constrained module that regularizes the refined representation by preserving the local neighborhood structure
+of the encoded feature space.Then the regularized representation is used to explicitly update the action embeddings Â through an action-prototype refinement
+step. Two update variants are considered: a K-means refresh on FR and an OT barycentric update using both F      e R and the refined transport plan Te R . The
+resulting update closes the representation–prototype loop by feeding the refined action embeddings back into the OT-based CLOT pipeline.
+
+A. Problem Formulation                                                             where σ(·) is the sigmoid and bϕ , sϕ are learnable scalars,
+                                                                                   and the embedding is updated through a prototype-conditioned
+   Let V := {V b }B     b=1 be a collection of B untrimmed activity                residual
+videos. Each video V b is a sequence of precomputed frame                                                       K
+                                                                                                             1 X
+descriptors Xb = [xb1 ; . . . ; xbNb ] ∈ RNb ×D , where Nb is                                     fi′ = fi +       ϕ(ak , fi ) ak .          (2)
+the number of sampled frames and D the input feature                                                         K
+                                                                                                                     k=1
+dimension. No frame-level labels, transcripts, or action-order                        Each frame thus aggregates information from semantically
+constraints are available during training. Given a predefined                      related prototypes while preserving its descriptor through the
+number of latent action classes K, the objective is to infer                       residual. We write F = norm({fi′ }N    i=1 ) for the dispatched
+                        b
+ŷb = [ŷ1b , . . . , ŷN b
+                            ], ŷib ∈ {1, . . . , K}, for every video b.           representation. The resulting frame embeddings are aligned
+The latent action space is parameterised by a shared action-                       with the prototypes by a temporally consistent OT problem
+embedding matrix A = [a1 , . . . , aK ]⊤ ∈ RK×d , where                            over a frame-to-cluster cost matrix C, producing a soft frame-
+ak ∈ Rd is the prototype of the k-th latent action, constrained                    to-action assignment.
+to the unit sphere (∥ak ∥2 = 1). Importantly, A is shared                          Parallel segment decoder. A transformer decoder maps F into
+                                                                                                                   ′
+across all videos of an activity and must therefore capture                        segment embeddings S ∈ RK ×d . Rather than autoregressive
+action structure consistently across subjects, durations, and                      decoding [23], it uses a parallel strategy adapted from action
+orderings. For readability, we omit the video superscript b                        anticipation [4], inferring all K ′ segment hypotheses jointly
+whenever unambiguous.                                                              and avoiding the error accumulation of sequential decoders.
+                                                                                                                        ′
+                                                                                   A set of learnable queries Q ∈ RK ×d , each a latent segment
+                                                                                   prototype [53], interact through self-attention to model inter-
+B. Backbone                                                                        segment dependencies and through cross-attention with the
+   D-CLOT retains the CLOT architecture as its backbone,                           encoded frame sequence to gather frame-level evidence, with
+mapping frame descriptors X ∈ RN ×D into three pro-                                K ′ ≤ K. As at the frame level, the decoder is coupled with
+gressively structured representations: frame embeddings F,                         a temporally consistent OT problem over a segment-to-cluster
+segment embeddings S, and refined frame embeddings FR .                            cost matrix CS .
+It comprises an MLP encoder with feature dispatching, a
+query-based parallel segment decoder, and a cross-attention                        Cross-attention refinement. The final component propagates
+refinement module.                                                                 segment-level information back to the frame domain. Given
+                                                                                   the frame embeddings F and the segment embeddings S,
+Encoder with feature dispatching. The encoder maps X into                          the refinement module computes a frame-to-segment attention
+frame embeddings F = norm(MLP(X)) ∈ RN ×d , where d is                             map and updates the frame representation as
+the latent dimension and norm(·) denotes ℓ2 normalisation. A                                                             FS⊤
+                                                                                                                              
+feature-dispatching mechanism then injects information from                                       FR = F + softmax          √    S             (3)
+                                                                                                                        τ· d
+the latent prototypes A, conditioning each frame on its affinity
+to the prototype space. For each frame embedding fi and                            where τ controls the sharpness of the alignment, so each frame
+prototype embedding ak , the affinity is                                           aggregates its most relevant segment embeddings, combining
+                                                                                   local evidence with higher-level temporal context. The refined
+                                        a⊤                                         embeddings FR are aligned with the prototype space through
+                                                  
+                                          k fi
+             ϕ(ak , fi ) = σ bϕ + sϕ                 ,       (1)                   a third OT problem over a frame-to-segment-to-cluster cost
+                                     ∥ak ∥2 ∥fi ∥2
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                     5
+
+
+
+matrix CR . The backbone thus forms a cyclic pipeline: frames      D. Action-embedding refinement
+are organised w.r.t. prototypes, segments are decoded from the        The graph module stabilises the refined frame geometry,
+frame sequence, and segment-level structure is projected back      but the action embeddings A are still updated only through
+onto the frames. D-CLOT retains this pipeline and extends it       gradient descent on the CLOT objective. As the OT stages
+as described next.                                                 reorganise the feature space, A can fall out of alignment with
+C. Graph-Constrained representation regularization                 the stabilised geometry it is meant to organise. We therefore
+                                                                   introduce an epoch-level action-embedding refinement that
+   Although FR incorporates segment-level information via          periodically re-anchors A to the graph-stabilised representa-
+cross-attention, the refined geometry may still inherit noise      tion. This leaves the CLOT architecture and the per-iteration
+from the initial feature space, particularly near action bound-    gradient updates untouched: it is an outer loop that proposes
+aries and for rare or short-duration actions. Since OT pseudo-     an updated prototype set and blends it into A.
+labels are sensitive to local feature geometry, when embed-           To preserve cluster identity and avoid abrupt shifts, both
+dings of temporally adjacent frames from different actions         variants apply a conservative, normalised blend rather than a
+overlap, the transport plan assigns inconsistent soft labels       hard replacement. Given a proposal Â, the update is
+that propagate errors into subsequent iterations. Therefore, we
+                                                                                                                 
+introduce a graph-constrained regulariser that encourages an                       A ← norm (1 − β) A + β Â ,                (6)
+auxiliary representation to preserve the local neighbourhood
+structure of the encoder anchor Fenc , while still allowing the    with blend factor β ∈ (0, 1] and row-wise ℓ2 normalisation.
+CLOT objective to reorganise the space according to the latent     The two configurations differ only in how the proposal Â
+action structure.                                                  is formed, and correspondingly in how the graph constraint
+                                                                   of Section III-C is imposed: D-CLOT uses an assignment-
+Graph affinity. Given a representation Z ∈ RN ×d and a             agnostic k-means proposal on penalty-regularised features,
+validity mask m ∈ {0, 1}N that zeros out padded frames, we         while D-CLOTB uses an assignment-aware barycentric pro-
+                                                           ×N
+define the normalised pairwise affinity G = S(Z) ∈ RN   +          posal on an explicitly graph-stabilised representation.
+as
+                                                                          k-means refinement. In the first variant, we define
+                                                                   D-CLOT:
+                                                           
+           wij                            1 − cos(zi , zj )
+Gij = X            , wij = mi mj exp −                        ,    F = (fRb )i : b = 1, . . . , B, i = 1, . . . , Nb as the refined
+               wpq                              h
+                                                                   frame features pooled over all videos of the activity. The video
+       (p,q)∈E
+                                                                   index b reappears here by necessity: the prototypes K are
+                                                             (4)
+                                                                   shared across the activity and are therefore re-estimated from
+where cos(·, ·) is the cosine similarity on ℓ2 -normalised rows,   the entire collection rather than a single video. The proposal
+E is the set of valid frame pairs, and h > 0 is a bandwidth.       is
+Diagonal entries are zero; optionally, a top-k sparsification                          b ← KMeans(F , K) .
+                                                                                       A                                         (7)
+retains the k largest weights per row, followed by symmetri-
+sation. The matrix is finally normalised to unit total mass,       blended into A via (6). This update is assignment-agnostic:
+so G encodes the local neighbourhood geometry of Z as an           it uses no transport plan and no assumption beyond K. Its
+empirical joint distribution over frame pairs [46].                stability therefore rests entirely on the graph penalty (5)
+                                                                   having kept FR close to the encoder geometry, a dependence
+Graph-constrained loss. Let Fenc , the pre-dispatching en-         confirmed by the ablation in Section IV-D.
+coder output, be a fixed anchor capturing the geometry of the
+input space with G0 = S(Fenc ) be the affinity of the fixed        D-CLOTB : barycentric refinement. The barycentric pro-
+anchor, and and G = S(Z) that of an auxiliary representation       posal requires, for each frame, both a stabilised feature and
+Z ∈ {F, FR }. The regulariser minimises the cross-entropy          a matched soft assignment. Rather than reading the penalty-
+between the two induced affinity distributions,                    regularised FR , this configuration enforces the graph con-
+                             X                                     straint (5) through an explicit auxiliary variable. We solve a
+                                 G0ij log Gij + ϵ ,
+                                                 
+          LG (Fenc , Z) = −                               (5)
+                                                                   short inner problem
+                              i,j
+         0
+where G and G are computed from the auxiliary represen-               e R = arg min λG LG (Fenc , V) + λa V − FR 2 ,
+                                                                      F                                                         (8)
+                                                                                   V                             F
+tation via (4) and ϵ > 0 is a numerical stabiliser. The anchor
+Fenc is detached from the computation graph, so gradients          where ∥ · ∥F is the Frobenius norm, approximated by a few
+flow only through Z. Minimising (5) discourages the OT             ℓ2 -normalised projected-gradient steps and used in place of
+refinement stages from forming inter-action connections absent     FR for decoding and OT. The two terms play opposing roles:
+in the encoder geometry; because cross-entropy is strictly         the fidelity term pulls the neighbourhood geometry of V
+convex in the affinity distribution, the fidelity term admits a    towards the encoder anchor, while the alignment term keeps
+unique minimiser.                                                  V close to the CLOT refined representation, so that λG /λa
+   By default, the fidelity term is imposed as a soft penalty      directly controls how much the stabilised representation is
+added to the CLOT objective (Section III-F), leaving F and         allowed to depart from the OT-driven one. During training, the
+FR as the representations passed to the OT solver.                 inner steps are differentiably unrolled, so gradients reach the
+                                                                   network; at inference, they run without backpropagating to the
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                 6
+
+
+
+network parameters. This yields an explicit graph-stabilised          Unbalanced relaxation. The action (column) marginal is
+representation F   e R and its refined transport plan T e R.          relaxed into a soft KL penalty, allowing the long-tailed action
+   Each prototype is then updated as the OT barycenter of the         distributions typical of untrimmed video:
+stabilised features, weighted by their soft assignment mass.
+                                                                                 min FFGW (C, T) + λ DKL T⊤ 1N ν ,
+                                                                                                                        
+Collecting the stabilised features (e     fRb )i and the assignment                                                              (12)
+                                                                                T∈Tp
+            b
+entries (TR )i,k over the epoch, we define the total soft mass
+          e
+                                                                                             ×K
+                         P P eb
+of action k as πk = b i (T                                            where Tp := {T ∈ RN        : T1K = µ} keeps only the frame
+                                    R )i,k and set                                         +
+                      P P eb                   !                     marginal, and λ > 0 controls how strongly the action marginal
+                                          eb
+          
+          norm          b    i (TR )i,k (fR )i                       T⊤ 1N is pulled towards ν: larger λ favours uniform usage,
+                                                  , πk > ε,
+   Âk =                         πk                             (9)   smaller λ permits long-tailed distributions.
+          
+              ak ,                                   otherwise,
+          
+                                                                      Cost matrices. The stage-wise costs use {Csw , Cv , Ca } for
+before blending via (6), where ε > 0 guards the denominator           the frame and refined-frame problems and {Ck , Cs , Ca } for
+against actions that receive no transport mass in a given             the segment problem. Except for Csw , they follow [13]:
+epoch, and it is fixed to 10−8 . Unlike the k-means update,           Cv , Ca penalise assigning temporally adjacent frames (|i −
+the barycentric update is assignment-aware: each frame con-           k| ≤ Nr , i ̸= k) to different actions (j ̸= l), with no penalty
+tributes to a prototype in proportion to its OT confidence,           outside the radius Nr or when adjacent frames share an action.
+so the prototype tracks the current transport geometry, and           The visual cost is
+frames with low mass contribute negligibly. This is what
+                                                                                     x⊤i aj                                   j
+protects the long tail. A rare action whose frames are assigned           Ckij =               − ρ Zij ,         Zij =    i
+                                                                                                                          N − K     ,       (13)
+with low confidence exerts a correspondingly small pull on                         ∥xi ∥ ∥aj ∥
+its prototype, so the prototype is neither dragged towards a          where Z is the temporal prior of [12], [13] regularising the
+dominant mode nor displaced by ambiguous boundary frames.             coupling towards a banded-diagonal structure, weighted by
+   Both variants share the same backbone, the same graph-             ρ ≥ 0.
+fidelity term (5), and the same blended, normalised update (6).
+They differ in how the constraint is applied and in the               Sliced-Wasserstein cost. For Csw we complement the cosine
+resulting prototype proposal: D-CLOT imposes the graph term           cost with the Sliced-Wasserstein (SW) distance [40], [41]. The
+as a penalty and refreshes A by k-means over the refined              p-Wasserstein distance between measures µ, ν is
+features, whereas D-CLOTB enforces it through an explicit re-                                 Z                           1/p
+optimisation and updates A by an assignment-aware barycen-              Wp (µ, ν) =       inf           ℓp (x, y) dγ(x, y)      , (14)
+                                                                                        γ∈Π(µ,ν)      Rd ×Rd
+ter of the resulting F e R . Comparing them therefore isolates
+the contribution of assignment-awareness while holding ev-            estimated empirically by projecting onto M random directions
+erything else fixed.                                                  {θm }M
+                                                                           m=1 on S
+                                                                                     d−1
+                                                                                         ,
+                                                                                                    M
+E. Optimal transport formulation                                                            
+                                                                                                1
+                                                                                                    X                             1/p
+                                                                        SWDp (xi , aj ) =       M         ℓ Rθm # xi , Rθm # aj           , (15)
+   For completeness we recall the unbalanced OT formulation                                         m=1
+of ASOT [13], which underlies each of the three OT problems
+                                                                      with ℓ the quadratic loss. We use p = 1, reducing the SW
+(T, TS , TR ) in the pipeline; we refer to [13], [16] for the full
+                                                                      distance to M one-dimensional OT problems with closed-form
+derivation.
+                                                                      solutions [38], and set
+                                        1
+KOT. Given histograms µ = N1 1N and ν = K 1K and a cost                              Csw                        k
+            N ×K                                                                      ij = 1 + SWD(xi , aj ) − Cij .                        (16)
+matrix C ∈ R+ , the Kantorovich problem [54] seeks the
+minimum-cost coupling                                                 The SW cost is used at the frame and refined-frame levels;
+                                                                      the simplified variant omits it, using Ck alone.
+ T∗ = min FKOT (C, T),             FKOT (C, T) := ⟨C, T⟩, (10)
+        T∈T
+                                              ×K
+over the transportation polytope T := {T ∈ RN
+                                            +    : T1K =              F. Training objective and inference
+     ⊤
+µ, T 1N = ν}. Here T is a soft assignment between frames
+                                                                         We train in a fully unsupervised manner by minimising
+and actions.
+                                                                      the cross-entropy between predicted assignment probabilities
+GW. The Gromov-Wasserstein term encodes structural priors             and OT pseudo-labels at all three levels. For video b, the
+                                                                                                                         b ⊤
+
+such as temporal consistency by comparing intra-domain costs          frame-to-action probabilities are Pijb = softmax( F τA )ij with
+Cv ∈ RN ×N (frames) and Ca ∈ RK×K (actions):                          temperature τ > 0, and the masked cross-entropy is
+                                                                                                        B    N   K
+                           X
+      FGW (Cv , Ca , T) :=         v
+                                L(Cik    a
+                                      , Cjl ) Tij Tkl , (11)                                        1 XXX b
+                                                                                L(T, P) = −                    Tij log Pijb , ,             (17)
+                            i,k∈[N ]                                                                B  i=1 j=1
+                            j,l∈[K]                                                                   b=1
+
+with L : R × R → R penalising deviations between cost                 The segment and refined-frame probabilities PS , PR are
+entries. The two terms are fused as FFGW := α FGW + (1 −              defined analogously against TS , TR , giving the three-stage
+α) FKOT for α ∈ [0, 1].                                               CLOT loss LCLOT = L(T, P) + L(TS , PS ) + L(TR , PR ).
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                                 7
+
+
+
+  The graph regulariser enters the objective only under the                                        TABLE I
+penalty mechanism (D-CLOT), giving the per-iteration loss               S TATISTICS OF DATASETS USED IN THE EXPERIMENTS . BACKGROUND
+                                                                               MEANS THE % OF BACKGROUND FRAMES IN A DATASET.
+                           F                  R
+Ltrain
+  D−CLOT = LCLOT + λG LG (Fenc , F) + λG LG (Fenc , FR ),               Statistic                  BF     YTII    FS (mid)    FS (eval)     DA         A101
+                                                            (18)        #Videos                  1,712      149          50          50       76         200
+with λF       R
+         G , λG ≥ 0 weighting the frame- and refined-frame-
+                                                                        Avg. #Frames/video    2,097.49   516.60   11,551.90   11,551.90   778.49   13,047.81
+                                                                          Minimum                  130       95       7,555       7,555      611       4,429
+level regularisation. Under the auxiliary-variable mechanism              Maximum                9,741    2,320      18,143      18,143    1,154      55,248
+                                                                        Feature Dim.                64    3,000          64          64      512       1,408
+(D-CLOTB ) the fidelity term is instead consumed inside the             #Activities (V)             10        5           1           1        1          15
+inner problem (8), and the outer objective reduces to LCLOT             Avg. #Actions/video
+                                                                        Background              12.1%
+                                                                                                     5
+                                                                                                         61.9%
+                                                                                                              9          18
+                                                                                                                     14.4%
+                                                                                                                                     17
+                                                                                                                                 14.4%
+                                                                                                                                              22
+                                                                                                                                           2.7%
+                                                                                                                                                          15
+                                                                                                                                                      42.1%
+evaluated on the graph-stabilised representations, Fe and F e R.
+   At inference, we obtain FR . Under the auxiliary-variable
+mechanism, this representation is graph-stabilised via the same            classes, and Eval, with 12 coarser classes. We use Fisher
+inner steps used during training, without backpropagation. The             vector features extracted from IDT [55].
+final segmentation solves the refined OT problem between FR              • Desktop Assembly (DA) [12] contains 76 videos, each of
+
+(or Fe R ) and A, assigning each frame ŷi = arg maxk (TR )i,k ,           about 1.5 min, in which subjects assemble a desktop setup
+with TR replaced by T   e R for D-CLOTB .                                  following a fixed procedure of 22 temporally ordered
+                                                                           actions. We use the features released by Tran et al. [34].
+                                                                         • Assembly101 [17] is a large-scale multi-view dataset for
+                      IV. E XPERIMENTS                                     toy assembly and disassembly. The full dataset comprises
+A. Experimental setting                                                    4, 321 videos, with an average duration of approximately
+      a) Implementation details: The backbone is unchanged                 7.1 minutes and a total duration of about 513 hours. It
+from CLOT [16] (Section III-B). Optimisation uses Adam                     covers 15 toy categories and provides annotations for 202
+with weight decay 10−4 and a learning rate around 10−3 .                   coarse action classes. Since the full benchmark contains
+Action embeddings A are initialised by k-means, and the                    a large number of videos, viewpoints, and fine-grained
+number of action clusters K is set to the ground-truth action              action instances, we define a controlled subset tailored
+count of each dataset, consistent with prior work [13]–[16].               to unsupervised action segmentation. Specifically, we use
+Videos are sampled to 256 frames per training iteration, except            the coarse action annotations, restrict the data to the
+on Assembly101 [17], where the longer average duration                     assembly task, and evaluate the two locally available
+motivates a budget of 512 frames. Training alternates gradient-            views, view1 and view2. The resulting subset contains
+based optimisation of (18) with periodic re-estimation of A:               200 view-specific videos from the local train–validation
+the prototypes are refreshed by k-means (7) for D-CLOT or                  split and spans all 15 toy categories. The number of ob-
+by the OT barycenter (9) for D-CLOTB , and blended into the                served coarse actions per toy category ranges from 11 to
+current prototypes via (6) rather than replaced outright. Neither          42, from jackhammer to excavator. We extract V-JEPA2
+module introduces learnable parameters, so both variants have              features [57] and treat each view-specific recording as an
+the same parameter count as CLOT. Detailed hyperparameter                  independent video instance2 .
+settings are reported in supp.mat.
+                                                                           c) Metrics.: We follow standard evaluation protocols
+      b) Datasets and Features.: We evaluate our approach
+                                                                      for unsupervised action segmentation [1]. Since predicted
+on five video datasets covering cooking, instructional, and
+                                                                      labels are unordered clusters, they are aligned with ground-
+assembly-oriented procedural activities. Following standard
+                                                                      truth action labels using Hungarian matching. We report
+practice in unsupervised action segmentation, we rely on pre-
+                                                                      two complementary settings: video-level matching, where the
+extracted visual representations to ensure a fair comparison
+                                                                      alignment is computed independently for each video [29], [33],
+with prior work [9], [12], [13], [15], [30], [34]. Table I reports
+                                                                      [36], and activity-level matching, where a single alignment is
+the principal statistics of each dataset.
+                                                                      computed over all videos of the same activity category [9],
+   • Breakfast (BF) [18] contains approximately 1,700 videos          [10], [12], [13], [15], [34]. For Assembly101 [17], where the
+      of subjects preparing breakfast dishes, organized into 10       proposed benchmark is defined over selected toy categories,
+      activities and 48 fine-grained action classes (e.g., cracking   we analogously report toy-level matching over the selected
+      an egg or pouring flour). Clip duration ranges from about       subset. We report three standard metrics: Mean over Frames
+      30 s to several minutes. We use the standard Fisher-vector      (MoF), which measures frame-wise accuracy and is sensitive
+      encoding of improved dense trajectories (IDT) [55].             to dominant actions; F1 Score [9], which evaluates segment-
+   • YouTube Instructions (YTI) [19]comprises 150 instruc-            level agreement; and mean Intersection over Union (mIoU),
+      tional videos from 5 activities, each lasting roughly           which averages class-wise overlap and provides a more bal-
+      two minutes. It is particularly challenging because back-       anced assessment under class imbalance. Since MoF is less
+      ground frames dominate the footage (approximately               sensitive to short and rare actions, F1 and mIoU are the
+      75%). We represent each frame by the concatenation of           primary metrics for evaluating this failure mode.
+      HOF descriptors and VGG16 conv5 features [56].
+   • 50 Salads (FS) [20] includes 50 salad-preparation videos
+      totaling 4.5 hours. We report results under the two                2 The pretrained weights used in this work are available at huggingface.co/
+      standard annotation granularities: Mid, with 19 action          facebook/vjepa2-vitl-fpc64-256.
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                                     8
+
+
+
+                                                                TABLE II
+     C OMPARISONS OF ACTION SEGMENTATION PERFORMANCE OBTAINED BY APPLYING THE H UNGARIAN MATCHING PER VIDEO AND AT THE
+  ACTIVITY- LEVEL ”F ULL ” ON THE B REAKFAST [18], YOUTUBE I NSTR . [19], 50S ALADS [20] AND D ESKTOP A SSEMBLY [12] BENCHMARKS . T HE
+HIGHEST ACCURACY IS IN BOLD , AND THE SECOND HIGHEST IS UNDERLINED . D-CLOT REFRESHES ACTION EMBEDDINGS WITH K- MEANS ON REFINED
+     FRAME EMBEDDINGS , WHILE D-CLOTB UPDATES ACTION EMBEDDINGS AS BARYCENTERS OF GRAPH - CONSTRAINED REFINED FEATURES .
+
+
+                                                             Breakfast                YTI            50Salads (Mid)       50Salads (Eval)            DA
+                          Methods
+                                                      MoF         F1   mIoU MoF       F1     mIoU MoF      F1     mIoU MoF      F1     mIoU MoF      F1     mIoU
+            Per video TWF* [33]                       62.7 49.8         42.3   56.7 48.2      -     66.8 56.4     48.7   71.7    -      -     73.3 67.7     57.7
+                      ABD* [36]                       64.0 52.3          -     67.2 49.2      -     71.8  -        -     71.2    -      -      -    -        -
+                      OTAS* [32]                      67.9  -            -     65.7  -        -     72.4  -        -     73.5    -      -      -    -        -
+                      TSA* [29] (kmeans)              63.7 58.0         53.3   59.7 55.3      -      -    -        -      -      -      -      -    -        -
+                          ASOT [13]                   63.3    53.5      35.9   71.2   63.3   47.8   64.3   51.1   33.4   64.5   58.9   33.0   73.4   68.0   47.6
+                          CLOT [16]                   66.3    55.9      37.1   69.3   60.8   48.2   69.4   63.8   45.0   64.6   69.7   42.5   73.5   75.2   52.4
+                          D-CLOT                      65.7    58.1      38.6   74.9   73.5   58.4   70.5   70.0   49.2   67.9   71.9   43.7   73.7   79.0   54.9
+                          D-CLOTB                     67.5    59.0      38.6   71.6   65.9   49.7   69.4   66.2   46.1   68.7   75.6   44.7   74.5   79.2   55.2
+            Full          CTE [9]                     41.8    26.4       -     39.0   28.3    -     30.2    -      -     35.5    -      -     47.6   44.9    -
+                          VTE [10]                    48.1     -         -      -     29.9    -     24.2    -      -     30.6    -      -      -      -      -
+                          UDE [37]                    47.4    31.9       -     43.8   29.6    -      -      -      -     42.2   34.4    -      -      -      -
+                          ASAL [11]                   52.5    37.9       -     44.9   32.1    -     34.4    -      -     39.2    -      -      -      -      -
+                          TOT [12]                    47.5    31.0       -     40.6   30.0    -     31.8    -      -     47.4   42.8    -     56.3   51.7    -
+                          TOT+ [12]                   39.0    30.3       -     45.3   32.9    -     34.3    -      -     44.5   48.2    -     58.1   53.4    -
+                          UFSA [34]                   52.1    38.0       -     49.6   32.4    -     36.7   30.4    -     55.8   50.3    -     65.4   63.0    -
+                          ASOT [13]                   56.1    38.3      18.6   52.9   35.1   24.7   46.2   37.4   24.9   59.3   53.6   30.1   70.4   68.0   45.9
+                          HVQ [15]                    54.4    39.7       -     50.3   35.1    -      -      -      -      -      -      -      -      -      -
+                          VASOT [14]                  57.5    39.0      18.8   53.2   35.7   25.2   47.2   41.3   26.1   60.6   57.4   34.5   70.9   75.1   49.3
+                          CLOT [16]                   60.1    40.1      18.5   54.4   36.7   23.4   50.6   46.6   31.4   59.4   63.2   38.8   68.8   72.6   48.1
+                          D-CLOT                      59.4    40.5      19.0   55.7   37.9   27.3   51.0   47.8   32.8   62.7   65.3   39.1   68.7   76.4   50.5
+                          D-CLOTB                     58.5    41.3      19.1   54.9   36.8   26.4   50.8   47.0   32.0   64.9   72.1   40.4   69.7   76.2   51.8
+
+
+                             TABLE III                                                       prove on all OT-based baselines across every dataset. D-CLOT
+         U NSUPERVISED ACTION SEGMENTATION RESULTS ON                                        leads on YTI (+1.3 MoF, +1.2 F1, +3.9 mIoU over CLOT)
+    A SSEMBLY 101 [17]. R ESULTS ARE REPORTED USING V-JEPA2
+FEATURES [57] OVER 15 TOY- CATEGORY ACTIVITIES , WITH H UNGARIAN                             and FS-Mid (+0.4 MoF, +1.2 F1, +1.4 mIoU), while D-
+   MATCHING COMPUTED AT THE ACTIVITY LEVEL AND PER VIDEO .                                   CLOTB is best on FS-Eval (+5.5 MoF, +8.9 F1, +1.6 mIoU)
+                                                                                             and attains the top DA mIoU, alongside D-CLOT’s best DA
+                                        Assembly101                                          F1. On Breakfast, both variants trade a small MoF decrease for
+                          Video-level             Activity-level                             higher segment-level scores: D-CLOTB improves F1 by +1.2
+   Method                                                                      Avg.
+                   MoF       F1     mIoU       MoF           F1        mIoU                  and mIoU by +0.6, while D-CLOT yields smaller gains (+0.4
+   CLOT [16]       53.1     42.2        21.8   26.1      11.5          4.8     26.6          F1, +0.5 mIoU) with a smaller MoF drop (−0.7). This trade-
+   D-CLOT          49.5     54.7        37.9   24.8      15.3          10.3    32.1
+   D-CLOTB         49.0     56.5        40.4   24.7      16.2          9.5     32.7
+                                                                                             off is expected: MoF is dominated by long-duration actions,
+                                                                                             whereas F1 and mIoU reward class-balanced, segment-level
+                                                                                             agreement, precisely what prototype re-anchoring improves
+B. State-of-the-art comparisons                                                              near ambiguous transitions and for short or infrequent actions.
+   Table II compares D-CLOT and D-CLOTB against prior                                           Overall, the proposed variants achieve the best or second-
+unsupervised methods under both per-video and activity-level                                 best results on most datasets and metrics. The choice be-
+Hungarian matching. Both differ only in how the action                                       tween variants is dataset-dependent: D-CLOT tends to benefit
+prototypes are re-estimated once the frame and segment rep-                                  datasets with sharper cluster structure (YTI, FS-Mid), while
+resentations have been refined: D-CLOT applies k-means to                                    the assignment-aware update of D-CLOTB is more effective
+the stabilized embeddings (assignment-agnostic), whereas D-                                  on datasets with more procedurally consistent, imbalanced
+CLOTB updates each prototype as an OT barycenter weighted                                    action durations (BF, FS-Eval, DA).
+by the refined transport plan (assignment-aware).
+Per-video matching. D-CLOT attains the best F1 and mIoU
+on YTI and FS-Mid, improving over CLOT by +12.7 F1 and                                       C. Assembly101: a fine-grained procediral benchmark
++10.2 mIoU on YTI, and by +6.2 F1 and +4.2 mIoU on FS-                                          Table I highlights the difficulty of our Assembly101 subset.
+Mid. D-CLOTB provides the strongest gains on FS-Eval and                                     It contains the longest videos on average (13,048 frames),
+DA, increasing F1 by +5.9 and +6.3 points, respectively, and                                 the largest activity diversity (15 toy categories with 11–42
+mIoU by +2.2 and +4.3 points. On YTI, both variants also                                     actions each), and substantial background (42.1%). Together
+improve MoF, so the gain there is not a trade-off but a uniform                              with its multi-view recordings and V-JEPA2 features, these
+improvement. Both variants surpass methods that train directly                               properties make it more challenging than existing cooking and
+on the target videos (TWF*, ABD*, OTAS*, TSA*) on most                                       instructional benchmarks.
+metrics, without requiring any per-video fine-tuning.                                           Table III reports the first unsupervised action-segmentation
+Full matching. The same pattern holds under the harder                                       results on Assembly101. Both D-CLOT and D-CLOTB im-
+activity-level protocol, and on F1 and mIoU both variants im-                                prove substantially over CLOT in F1 and mIoU at the video
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                                        9
+
+
+
+                                                                TABLE IV
+     A BLATION S TUDY ON THE FOUR DATASETS : B REAKFAST [18], YTI [19], 50S ALADS [20] AND D ESKTOP A SSEMBLY [12]. GC DENOTES THE
+       GRAPH - CONSTRAINED TERM , APPLIED AT THE FRAME LEVEL (F ), THE REFINED - FRAME LEVEL (FR ), OR BOTH ; Â DENOTES THE PERIODIC
+ RE - ESTIMATION OF THE PROTOTYPES . T HE TOP ROW (CLOT [16]) IS THE BASELINE . W ITHIN EACH VARIANT BLOCK , THE HIGHLIGHTED ROW IS THE
+     FULL MODEL (GC AT BOTH LEVELS and REFINEMENT ); THE OTHER ROWS TOGGLE ONE FACTOR AT A TIME . ROWS LABELLED ” ONLY GC IN ·”
+ ACTIVATE THE GRAPH TERM AT THE INDICATED LEVEL ( S ) without REFINING THE PROTOTYPES , THUS ISOLATING GC ALONE . ROWS LABELLED ” W / O
+  GC ·” KEEP REFINEMENT ACTIVE BUT REMOVE THE GRAPH TERM AT THE INDICATED LEVEL . B OTH FULL MODELS IMPROVE OVER CLOT ON MOST
+  METRICS , AND THE FULL D-CLOT B IS THE ONLY CONFIGURATION THAT SURPASSES all ITS ABLATED VARIANTS ON EVERY DATASET AND METRIC .
+
+
+                                                               Breakfast                 YTI            50Salads (Mid)       50Salads (Eval)            DA
+                                                       MoF       F1    mIoU MoF          F1     mIoU MoF      F1     mIoU MoF      F1     mIoU MoF      F1     mIoU
+             CLOT [16]                                  60.1 40.1      18.5   54.4 36.7         23.4   50.6 46.6     31.4   59.4 63.2     38.8   68.8 72.6     48.1
+             D-CLOT w/o Â           only GC in F     57.5 39.4        17.9   51.8 36.0         26.9   51.2 46.3     31.3   49.5 57.1     36.4   60.5 67.5     41.7
+             shared by both variants only GC in FR    58.3 40.2        18.3   50.8 34.8         25.8   50.6 47.5     32.4   48.3 56.4     36.0   65.8 68.8     45.0
+                                     only GC in F, FR 58.1 39.6        18.1   50.1 34.7         25.1   51.9 45.3     30.1   48.2 56.2     36.1   58.3 64.1     40.3
+             D-CLOT                 w/o GC              58.3    39.8   17.9   53.9       36.2   25.4   46.3   42.8   29.4   50.1   58.1   36.1   58.8   59.2   38.7
+                                    w/o GC in FR        58.5    40.3   18.0   54.6       36.8   26.2   49.7   47.5   32.0   51.9   59.4   37.3   59.2   61.8   39.6
+                                    w/o GC in F         59.5    41.0   18.8   54.4       37.7   26.3   50.6   47.0   32.2   54.9   66.6   38.9   67.0   68.9   46.7
+                                    Full                59.4    40.5   19.0   55.7       37.9   27.3   51.0   47.8   32.8   62.7   65.3   39.1   68.7   76.4   50.5
+             D-CLOTB                w/o GC              57.2    40.6   18.6   51.1       34.9   23.8   49.2   43.7   30.5   48.5   58.0   35.9   59.0   63.6   40.0
+                                    w/o GC in FR        42.0    32.1   18.4   53.0       36.1   25.3   41.6   38.7   25.2   47.8   57.6   35.0   65.2   68.9   44.8
+                                    w/o GC in F         56.3    39.5   18.1   53.8       36.2   25.7   47.0   44.0   28.5   54.9   66.6   39.0   68.1   68.7   45.7
+                                    Full                58.5    41.3   19.1   54.9       36.8   26.4   50.8   47.0   32.0   64.9   72.1   40.4   70.4   78.2   51.8
+                                                                                     ,
+
+
+
+
+Fig. 3. Qualitative ablation of the D-CLOT components on the prototype geometry and the resulting segmentation. For a representative YTI video we
+show, top, the first two principal components of the refined frame embeddings FR (dots, coloured by ground-truth action) together with the action prototypes A
+(diamonds) and, bottom, the ground-truth (GT) and predicted (pred) frame labels. The four panels ablate the two modules: (i) the CLOT baseline; (ii) D-CLOT
+without prototype re-estimation (w/o Â); (iii) D-CLOT without the graph constraint (w/o GC); and (iv) the full D-CLOT model. In CLOT, two prototypes
+collapse onto the same region and a spurious action (blue) is predicted where none exists in the ground truth. The graph constraint restores temporally coherent
+boundaries but leaves the spurious prototype active; prototype re-estimation relocates the prototypes towards their supporting frame clusters. Only the full
+model, combining both, removes the spurious assignment and recovers a segmentation that closely matches the ground truth. Colours denote action classes.
+
+level, at the cost of a small MoF drop, again reflecting the                              graph on F̃R regularizes a representation already enriched by
+MoF/F1–mIoU trade-off under the long-tailed, fine-grained                                 cross-attention and therefore acts more directly on temporal
+action distribution of this benchmark (11–42 actions per                                  coherence.
+toy category). Activity-level performance is markedly lower                                  The results show that action refinement is most effective
+for every method, confirming that Assembly101 is a harder                                 when applied to a graph-stabilized representation. Updating
+benchmark than the cooking and instructional datasets, owing                              A alone is unstable for D-CLOT, since prototypes are re-
+to its larger action vocabulary and multi-view structure. D-                              anchored to an unconstrained refined space. Conversely, graph
+CLOTB obtains the best overall average, indicating that graph-                            regularization alone yields dataset-dependent gains, but does
+constrained action refinement generalises beyond the cooking                              not consistently match the full configuration. Overall, the full
+and instructional domains to large-scale, fine-grained assembly                           model improves over CLOT on most dataset/metric pairs,
+video. Our method provides the strongest first baseline, but the                          especially in F1 and mIoU, showing that geometry stabiliza-
+scores indicate substantial room for future work.                                         tion and prototype refinement address different aspects of the
+                                                                                          representation–prototype mismatch.
+D. Ablation study                                                                            A few ablated configurations outperform the full D-CLOT
+  Table IV isolates the contribution of the three proposed com-                           model on metrics. These cases reflect metric-specific trade-offs
+ponents: graph regularization on the frame embeddings (F̃ ),                              rather than a failure of the full design. On FS-Mid, removing
+graph regularization on the refined frame embeddings (F̃R ),                              A slightly increases MoF, but reduces both F1 and mIoU,
+and action-embedding refinement (A). These components play                                consistent with MoF’s bias toward dominant long-duration
+complementary roles. The graph on F̃ preserves local visual                               actions. On FS-Eval, using F̃R and A without F̃ improves
+neighborhoods before segment-level propagation, whereas the                               F1, but causes a large MoF drop and slightly lower mIoU,
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                               10
+
+
+
+                                                                               structure and prototype geometry.
+
+                                                                               E. Sensitivity analysis
+                                                                                  We analyse the sensitivity of D-CLOT and D-CLOTB with
+                                                                               respect to the main hyperparameters introduced by the graph-
+                                                                               constrained stabilisation and action-refinement modules in
+                                                                               Fig. 4. Since temporal action segmentation is highly sensitive
+    (a) Frame graph weight λF            (b) Refine graph weight λR
+                                                                               to over-segmentation and boundary fragmentation, we report
+                            G                                     G
+                                                                               F1 in the main paper and provide the corresponding MOF
+                                                                               and mIoU plots in the supplementary material. Compared with
+                                                                               MOF, which can be biased towards frequent or long-duration
+                                                                               actions, and compared with mIoU, it is less brittle under
+                                                                               the noisy pseudo-labels inherent to unsupervised training. F1
+                                                                               provides a more diagnostic measure of segmental quality.
+                                                                               Graph fidelity weights (λF        R
+                                                                                                            G , λG ). On DA, F1 peaks sharply
+                                                                                    F                 R
+                                                                               at λG = 0.05 and λG = 0.1 for both variants: a moderate
+                                                                               amount of graph regularisation stabilises the refined frame
+                                                                               geometry, while excessive regularisation over-constrains it, as
+       (c) Graph bandwidth h                 (d) Blend factor β                expected from (5). D-CLOTB is smoother and less sharply
+                                                                               peaked than D-CLOT, particularly with respect to λF  G . On YTI,
+                                                                               F1 varies little: with 62% background frames, there is limited
+                                                                               geometry to anchor to, so the modules act as a stabiliser rather
+                                                                               than a strong amplifier, the intended fallback behaviour, not
+                                                                               a shortcoming. FS-Eval sits in between, but the barycentric
+                                                                               variant benefits from the refined graph weight, though this
+                                                                               gain requires controlled strength to avoid over-smoothing.
+                                                                               Graph bandwidth (h). On DA, small h collapses the affinity
+       (e) k-means refinement             (f) Barycentric refinement           graph to near-diagonal and the term stops regularising, while
+Fig. 4. Sensitivity analysis on F1. Each panel varies one hyperparameter       a large h flattens it and discards local structure, per (4). YTI
+while keeping the remaining configuration fixed. Colours denote datasets and   stays flat, consistent with a stabilisation role rather than a
+line styles denote D-CLOT and D-CLOTB .                                        performance lever under weak temporal regularity. FS-Eval is
+indicating boundary-level gains at the expense of frame cov-                   mixed: flat for D-CLOT, but a 10-point swing for D-CLOTB ,
+erage. In contrast, D-CLOTB shows a more stable pattern: its                   again reflecting the barycentric variant’s greater ability to
+full configuration dominates all partial variants across datasets              exploit graph structure when it is informative.
+and metrics. This supports the assignment-aware barycentric                    Blend factor (β). On DA, moderate blending helps both vari-
+update as a more robust refinement mechanism.                                  ants: the transport plan is reliable, so re-anchoring prototypes
+   Fig. 3 illustrates the complementary roles of graph reg-                    captures real structure. On YTI, a small blending is best, with
+ularization (GC) and action refinement. CLOT disrupts the                      only mild degradation as β grows; this is not a failure of
+action order, while GC recovers more coherent temporal                         the update but confirmation that the bounded, convex blend
+boundaries. However, GC still assigns frames to a spurious                     of (6) degrades gracefully under unreliable transport mass.
+action prototype, shown by the blue segment. Updating A                        FS-Eval is less consistent between variants: D-CLOT peaks
+corrects this prototype mismatch: in the full D-CLOT model,                    at the largest β tested, D-CLOTB barely moves.
+the blue segment disappears, indicating that any frame no                      Stabilisation budget (k-means iterations, inner steps S).
+longer selects the corresponding prototype. Thus, GC mainly                    D-CLOT is robust to its k-means budget (7): F1 does not
+regularizes temporal structure, whereas action refinement cor-                 change on YTI, and our default is within 0.1 point of the
+rects the prototype-to-frame assignment. On this video, D-                     best value on DA. Therefore, sharper prototype relocation is
+CLOT improves MoF from 0.663 to 0.939, F1 from 0.333                           beneficial here without requiring careful tuning. D-CLOTB ’s
+to 1.000, and mIoU from 0.348 to 0.883.                                        inner-step count S (8) matters more. The three datasets peak
+   The PCA plot supports this interpretation. Stable prototypes,               sharply at S = 2, our default. In general, more steps pull
+such as the light-green one, remain almost unchanged, while                    the representation harder toward the encoder anchor, which
+the dark-green prototype moves substantially toward the rel-                   helps denoise YTI’s weaker signal but risks over-smoothing
+evant frame cluster. This displacement reduces the influence                   FS-Eval’s already coarse, 12-class boundaries. We fix S = 2,
+of the dark-blue prototype and resolves the erroneous assign-                  which matches DA and YTI exactly and balances the other
+ment. The proximity between the light-blue and dark-orange                     dataset complementary preferences.
+prototypes also explains the observed confusion in ordering                      Across datasets, the sensitivity curves demonstrate that
+and boundaries in CLOT. Overall, the figure shows that D-                      graph-constrained action refinement is robust to moderate hy-
+CLOT improves segmentation by jointly correcting temporal                      perparameter variations. No parameter causes a substantial per-
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                     11
+
+
+
+                                                                          and periodically updating the prototypes. We investigated two
+                                                                          refinement strategies: a k-means update and an assignment-
+                                                                          aware optimal transport barycentric update, while preserving
+                                                                          the original CLOT formulation.
+                                                                             Extensive experiments on five benchmarks demonstrate
+                                                                          consistent improvements over CLOT, with substantial gains
+                                                                          in segment-level quality, particularly in F1 and mIoU. The
+                                                                          ablation analysis shows that graph-based regularization and
+                                                                          prototype refinement are complementary: graph regularization
+                                                                          promotes temporally coherent representations, whereas proto-
+                                                                          type refinement maintains alignment between latent actions
+                                                                          and the evolving feature space. Among the proposed variants,
+Fig. 5. Example segmentation from DA [12] (top) and FS (Eval) [20]
+(bottom). We report the ground-truth (GT), the results of CLOT, and the   the assignment-aware barycentric refinement consistently pro-
+result in ours two variants, D-CLOT and D-CLOTB .                         vides the most robust performance across datasets.
+                                                                             Beyond improving the state of the art, we present the
+formance degradation, and the best results generally arise from           first unsupervised temporal action segmentation benchmark
+intermediate graph regularization and conservative prototype              on Assembly101, highlighting the challenges posed by fine-
+updates. This suggests that refinement improves the geometry              grained actions, viewpoint variability, and procedural diversity.
+of frame representations without excessively constraining OT-             These results suggest that continuously adapting latent proto-
+based action discovery. D-CLOT is preferable when stronger                types to an evolving representation space is a key ingredient
+k-means prototype relocation is beneficial, whereas D-CLOTB               for scalable unsupervised temporal action segmentation, and
+yields smoother, assignment-aware updates through its aux-                motivate future work on richer prototype learning and more
+iliary graph-stabilized representation. The lower sensitivity             expressive latent action models.
+observed on YTI indicates that, for noisier videos pooled
+across activities, refinement primarily stabilizes learning rather                               ACKNOWLEDGMENTS
+than substantially amplifying performance. This behavior is                 This      work      was supported by grant        PRE2020-
+                                                                          094714, the project PID2019-110977GA-I00 and the project
+particularly evident for β: the bounded update in (6) limits              PID2023-151351NB-I00, funded by Ministerio de Ciencia e
+prototype changes on YTI while exploiting clearer structure               Innovación (MCIN)/ Agencia Estatal de Investigación (AEI)
+on DA. Overall, these results support the selected default                /10.13039/501100011033, by European Social Fund (ESF) Investing
+configuration and show that the improvements do not depend                in your future and by ERDF, UE. It was also supported by
+on narrowly tuned hyperparameters.                                        an Alexander von Humboldt (AvH) fellowship for experienced
+                                                                          researchers funded by the AvH Foundation.
+
+F. Qualitative results.                                                                                R EFERENCES
+   Figure 5 compares the temporal segmentations produced                   [1] G. Ding, F. Sener, and A. Yao, “Temporal action segmentation: An
+by CLOT, D-CLOT, and D-CLOTB on representative videos                          analysis of modern techniques,” IEEE Transactions on Pattern Analysis
+from 50Salads and Desktop Assembly. On FS-Eval, CLOT                           and Machine Intelligence, vol. 46, no. 2, pp. 1011–1030, 2023.
+                                                                           [2] Z. Lu and E. Elhamifar, “Multi-modal few-shot temporal action seg-
+introduces spurious classes in the early–middle region and                     mentation,” in Proceedings of the IEEE/CVF International Conference
+over-merges the central structure into a single block, losing the              on Computer Vision, 2025, pp. 14 106–14 116.
+fine transitions. D-CLOT removes them and restores cleaner,                [3] K. Li, Y. Wang, Y. He, Y. Li, Y. Wang, Y. Liu, Z. Wang, J. Xu,
+                                                                               G. Chen, P. Luo et al., “Mvbench: A comprehensive multi-modal video
+more coherent segments, while D-CLOTB recovers short,                          understanding benchmark,” in Proceedings of the IEEE/CVF Conference
+minority actions and thin boundaries that the other rows miss.                 on Computer Vision and Pattern Recognition, 2024, pp. 22 195–22 206.
+On DA, CLOT preserves the global action order but drifts                   [4] D. Gong, J. Lee, M. Kim, S. J. Ha, and M. Cho, “Future transformer for
+                                                                               long-term action anticipation,” in Proceedings of the IEEE conference
+boundaries and drops several short steps. D-CLOT tightens                      on computer vision and pattern recognition, 2022, pp. 3052–3061.
+these boundaries, and D-CLOTB yields the closest alignment                 [5] T. Wang and S. Todorovic, “Timestamp query transformer for temporal
+to GT, respecting the procedural order and recovering the                      action segmentation,” in Proceedings of the IEEE/CVF Winter Confer-
+                                                                               ence on Applications of Computer Vision (WACV), March 2026, pp.
+short intermediate segments. Re-anchoring the prototypes to                    5016–5025.
+the graph-stabilized geometry thus fixes the spurious-class                [6] Z. Zhao, R. Ghoddoosian, I. Dwivedi, N. Agarwal, and B. Dariush,
+and boundary-merging failures of CLOT, and the assignment-                     “Pose-aware weakly-supervised action segmentation,” in Proceedings
+                                                                               of the IEEE conference on computer vision and pattern recognition
+aware update preserves exactly the short, imbalanced actions                   Workshops, June 2025, pp. 97–107.
+that drive F1/mIoU while barely affecting MoF.                             [7] J. Huang, R. Cai, J. Fang, H. Zhu, B. Xu, W. Chen, Z. Li, and
+                                                                               S. Gao, “Hierarchical action learning for weakly-supervised action
+                                                                               segmentation,” in Proceedings of the IEEE conference on computer
+              V. D ISCUSSION AND C ONCLUSION                                   vision and pattern recognition, June 2026, pp. 6054–6064.
+                                                                           [8] A. Xu and W.-S. Zheng, “Efficient and effective weakly-supervised
+   We introduced D-CLOT, a graph-constrained extension of                      action segmentation via action-transition-aware boundary alignment,” in
+CLOT for unsupervised temporal action segmentation. The                        Proceedings of the IEEE conference on computer vision and pattern
+proposed framework addresses the mismatch between pro-                         recognition, 2024.
+                                                                           [9] A. Kukleva, H. Kuehne, F. Sener, and J. Gall, “Unsupervised learning of
+gressively refined frame representations and latent action pro-                action classes with continuous temporal embedding,” in Proceedings of
+totypes by jointly regularizing the representation geometry                    the IEEE conference on computer vision and pattern recognition, 2019.
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                              12
+
+
+
+[10] R. G. VidalMata, W. J. Scheirer, A. Kukleva, D. D. Cox, and H. Kuehne,      [31] C. Dias and M. Dimiccoli, “Learning event representations by encoding
+     “Joint visual-temporal embedding for unsupervised learning of actions            the temporal context,” in Proceedings of the European Conference on
+     in untrimmed sequences,” in IEEE Winter Conference on Applications               Computer Vision (ECCV) Workshops, 2018, pp. 0–0.
+     of Computer Vision (WACV), 2021, pp. 1237–1246.                             [32] Y. Li, Z. Xue, and H. Xu, “Otas: unsupervised boundary detection
+[11] J. Li and S. Todorovic, “Action shuffle alternating learning for unsuper-        for object-centric temporal action segmentation,” in Proceedings of
+     vised action segmentation,” in Proceedings of the IEEE conference on             the IEEE/CVF Winter Conference on Applications of Computer Vision,
+     computer vision and pattern recognition, 2021.                                   2024, pp. 6437–6446.
+[12] S. Kumar, S. Haresh, A. Ahmed, A. Konin, M. Z. Zia, and Q.-H. Tran,         [33] M. S. Sarfraz, N. Murray, V. Sharma, A. Diba, L. V. Gool, and
+     “Unsupervised action segmentation by joint representation learning and           R. Stiefelhagen, “Temporally-weighted hierarchical clustering for unsu-
+     online clustering,” in Proceedings of the IEEE conference on computer            pervised action segmentation,” in Proceedings of the IEEE conference
+     vision and pattern recognition, 2022, pp. 20 174–20 185.                         on computer vision and pattern recognition, 2021.
+[13] M. Xu and S. Gould, “Temporally consistent unbalanced optimal               [34] Q.-H. Tran, A. Mehmood, M. Ahmed, M. Naufil, A. Zafar, A. Konin, and
+     transport for unsupervised action segmentation,” in Proceedings of the           M. Z. Zia, “Permutation-aware activity segmentation via unsupervised
+     IEEE/CVF Conference on Computer Vision and Pattern Recognition,                  frame-to-segment alignment,” in 2024 IEEE/CVF Winter Conference on
+     2024, pp. 14 618–14 627.                                                         Applications of Computer Vision. IEEE, 2024, pp. 6412–6422.
+[14] A. S. Ali, S. A. Mahmood, M. Saeed, A. Konin, M. Z. Zia, and Q.-H.          [35] S. N. Aakur and S. Sarkar, “A perceptual prediction framework for self
+     Tran, “Joint self-supervised video alignment and action segmentation,”           supervised event segmentation,” in Proceedings of the IEEE conference
+     in Proceedings of the IEEE/CVF International Conference on Computer              on computer vision and pattern recognition, 2019.
+     Vision, 2025, pp. 10 807–10 818.                                            [36] Z. Du, X. Wang, G. Zhou, and Q. Wang, “Fast and unsupervised action
+[15] F. Spurio, E. Bahrami, G. Francesca, and J. Gall, “Hierarchical vector           boundary detection for action segmentation,” in Proceedings of the IEEE
+     quantization for unsupervised action segmentation,” in Proceedings of            conference on computer vision and pattern recognition, 2022.
+     the AAAI Conference on Artificial Intelligence, vol. 39, no. 7, 2025, pp.   [37] S. Swetha, H. Kuehne, Y. S. Rawat, and M. Shah, “Unsupervised
+     6996–7005.                                                                       discriminative embedding for sub-action learning in complex activities,”
+[16] E. Bueno-Benito and M. Dimiccoli, “Clot: Closed loop optimal transport           in 2021 IEEE International Conference on Image Processing (ICIP).
+     for unsupervised action segmentation,” in Proceedings of the IEEE/CVF            IEEE, 2021, pp. 2588–2592.
+     International Conference on Computer Vision, 2025, pp. 10 719–10 729.       [38] J. Rabin, G. Peyré, J. Delon, and M. Bernot, “Wasserstein barycenter
+[17] F. Sener, D. Chatterjee, D. Shelepov, K. He, D. Singhania, R. Wang,              and its application to texture mixing,” in Scale Space and Variational
+     and A. Yao, “Assembly101: A large-scale multi-view video dataset for             Methods in Computer Vision: Third International Conference, SSVM.
+     understanding procedural activities,” in Proceedings of the IEEE/CVF             Springer, 2012, pp. 435–446.
+     Conference on Computer Vision and Pattern Recognition, 2022, pp.            [39] K. Lee, W. Xu, F. Fan, and Z. Tu, “Wasserstein introspective neural
+     21 096–21 106.                                                                   networks,” in Proceedings of the IEEE conference on computer vision
+[18] H. Kuehne, A. Arslan, and T. Serre, “The language of actions: Recov-             and pattern recognition, 2018, pp. 3702–3711.
+     ering the syntax and semantics of goal-directed human activities,” in       [40] S. Kolouri, K. Nadjahi, U. Simsekli, R. Badeau, and G. Rohde, “Gen-
+     Proceedings of the IEEE conference on computer vision and pattern                eralized sliced wasserstein distances,” Advances in Neural Information
+     recognition, 2014.                                                               Processing Systems (NeurIPS), vol. 32, 2019.
+                                                                                 [41] K. Nguyen and N. Ho, “Energy-based sliced wasserstein distance,”
+[19] J.-B. Alayrac, P. Bojanowski, N. Agrawal, J. Sivic, I. Laptev, and
+                                                                                      Advances in Neural Information Processing Systems (NeurIPS), vol. 36,
+     S. Lacoste-Julien, “Unsupervised learning from narrated instruction
+                                                                                      pp. 18 046–18 075, 2023.
+     videos,” in Proceedings of the IEEE conference on computer vision and
+     pattern recognition, 2016, pp. 4575–4583.                                   [42] R. Vidal, “Subspace clustering,” IEEE Signal Processing Magazine,
+                                                                                      vol. 28, no. 2, pp. 52–68, 2011.
+[20] S. Stein and S. J. McKenna, “Combining embedded accelerometers with
+                                                                                 [43] E. Elhamifar and R. Vidal, “Sparse subspace clustering: Algorithm,
+     computer vision for recognizing food preparation activities,” in Proceed-
+                                                                                      theory, and applications,” IEEE transactions on pattern analysis and
+     ings of the 2013 ACM international joint conference on Pervasive and
+                                                                                      machine intelligence, vol. 35, no. 11, pp. 2765–2781, 2013.
+     ubiquitous computing, 2013, pp. 729–738.
+                                                                                 [44] C.-Y. Lu, H. Min, Z.-Q. Zhao, L. Zhu, D.-S. Huang, and S. Yan, “Robust
+[21] F. Huang, X.-D. Chen, W. Wu, and W. Ma, “Not all samples are
+                                                                                      and Efficient Subspace Segmentation via Least Squares Regression,” in
+     equal: Boosting action segmentation via selective incremental learning,”
+                                                                                      Proceedings of the European Conference on Computer Vision (ECCV).
+     Engineering Applications of Artificial Intelligence, vol. 147, p. 110334,
+                                                                                      Springer, 2012, pp. 347–360.
+     2025.
+                                                                                 [45] Y. Li, J. Zhou, X. Zheng, J. Tian, and Y. Y. Tang, “Robust subspace
+[22] E. Bahrami, G. Francesca, and J. Gall, “How much temporal long-term              clustering with independent and piecewise identically distributed noise
+     context is needed for action segmentation?” in Proceedings of IEEE/CVF           modeling,” in Proceedings of the IEEE/CVF Conference on Computer
+     International Conference on Computer Vision (ICCV), 2023.                        Vision and Pattern Recognition, 2019, pp. 8720–8729.
+[23] N. Behrmann, S. A. Golestaneh, Z. Kolter, J. Gall, and M. Noroozi,          [46] P. Goyal and E. Ferrara, “Graph embedding techniques, applications,
+     “Unified fully and timestamp supervised temporal action segmentation             and performance: A survey,” Knowledge-Based Systems, vol. 151, pp.
+     via sequence to sequence translation,” in Proceedings of the European            78–94, 2018.
+     Conference on Computer Vision (ECCV), 2022.                                 [47] M. Dimiccoli, L. Garrido, G. Rodriguez-Corominas, and H. Wendt,
+[24] Z. Lu and E. Elhamifar, “Fact: Frame-action cross-attention temporal             “Graph constrained data representation learning for human motion seg-
+     modeling for efficient action segmentation,” in Proceedings of the IEEE          mentation,” in Proceedings of the IEEE/CVF International Conference
+     conference on computer vision and pattern recognition, 2024.                     on Computer Vision, 2021, pp. 1460–1469.
+[25] ——, “Set-supervised action learning in procedural task videos via           [48] Z. Xing and W. Zhao, “Temporal visual semantics-induced human
+     pairwise order consistency,” in Proceedings of the IEEE/CVF Conference           motion understanding with large language models.” IEEE, 2026.
+     on Computer Vision and Pattern Recognition, 2022, pp. 19 903–19 913.        [49] M. Caron, P. Bojanowski, A. Joulin, and M. Douze, “Deep Clustering
+[26] Y. Souri, M. Fayyaz, L. Minciullo, G. Francesca, and J. Gall, “Fast              for Unsupervised Learning of Visual Features,” in Proceedings of the
+     weakly supervised action segmentation using mutual consistency,” IEEE            European Conference on Computer Vision (ECCV), 2018, pp. 132–149.
+     Transactions on Pattern Analysis and Machine Intelligence, 2022.            [50] M. Caron, I. Misra, J. Mairal, P. Goyal, P. Bojanowski, and A. Joulin,
+[27] R. Zhang, S. Wang, Y. Duan, Y. Tang, Y. Zhang, and Y.-P. Tan, “Hoi-              “Unsupervised Learning of Visual Features by Contrasting Cluster
+     aware adaptive network for weakly-supervised action segmentation,” in            Assignments,” in Advances in Neural Information Processing Systems,
+     Proceedings of the AAAI Conference on Artificial Intelligence, 2023.             vol. 33, 2020, pp. 9912–9924.
+[28] E. Bueno-Benito and M. Dimiccoli, “2by2: Weakly-supervised learning         [51] M. Cuturi and A. Doucet, “Fast Computation of Wasserstein Barycen-
+     for global action segmentation,” in International Conference on Pattern          ters,” in Proceedings of the 31st International Conference on Machine
+     Recognition. Springer, 2024, pp. 380–395.                                        Learning, ser. Proceedings of Machine Learning Research, vol. 32, no. 2.
+[29] E. Bueno-Benito, B. Tura, and M. Dimiccoli, “Leveraging triplet loss             PMLR, 2014, pp. 685–693.
+     for unsupervised action segmentation,” in Proceedings of the IEEE           [52] J.-D. Benamou, G. Carlier, M. Cuturi, L. Nenna, and G. Peyré, “Iterative
+     conference on computer vision and pattern recognition workshops, 2023.           Bregman Projections for Regularized Transportation Problems,” SIAM
+[30] G. Ding and A. Yao, “Temporal action segmentation with high-level                Journal on Scientific Computing, vol. 37, no. 2, pp. A1111–A1138, 2015.
+     complex activity labels,” IEEE Transactions on Multimedia, vol. 25, pp.     [53] N. Carion, F. Massa, G. Synnaeve, N. Usunier, A. Kirillov, and
+     1928–1939, 2022.                                                                 S. Zagoruyko, “End-to-end object detection with transformers,” in
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                           13
+
+
+
+     Proceedings of the European Conference on Computer Vision (ECCV).
+     Springer, 2020, pp. 213–229.
+[54] M. Thorpe, “Introduction to optimal transport,” Notes of Course at
+     University of Cambridge, 2018.
+[55] H. Wang and C. Schmid, “Action recognition with improved trajecto-
+     ries,” in Proceedings of IEEE/CVF international conference on computer
+     vision, 2013.
+[56] K. Simonyan and A. Zisserman, “Very deep convolutional networks
+     for large-scale image recognition,” in 3rd international conference on
+     learning representations (ICLR 2015). Computational and Biological
+     Learning Society, 2015.
+[57] M. Assran, A. Bardes, D. Fan, Q. Garrido, R. Howes, M. Komeili,
+     M. Muckley, A. Rizvi, C. Roberts, K. Sinha, A. Zholus, S. Arnaud,
+     A. Gejji, A. Martin, F. Robert Hogan, D. Dugas, P. Bojanowski, V. Khali-
+     dov, P. Labatut, F. Massa, M. Szafraniec, K. Krishnakumar, Y. Li,
+     X. Ma, S. Chandar, F. Meier, Y. LeCun, M. Rabbat, and N. Ballas, “V-
+     jepa 2: Self-supervised video models enable understanding, prediction
+     and planning,” arXiv preprint arXiv:2506.09985, 2025.
+                                                                                Fig. 6. Per-video improvement over CLOT [16] for MoF and F1 on FS-Eval
+                               A PPENDIX                                        (n=50) and YTI (n=149, pooled over its five activities). For each video,
+   This supplementary material provides additional evidence support-            ∆ = variant − CLOT is computed separately for D-CLOT and D-CLOTB ;
+ing the robustness and practicality of D-CLOT and D-CLOTB . It                  each box shows the median, interquartile range, and whiskers of ∆, with
+examines how consistently the methods improve individual videos,                per-video values overlaid as jittered points. Mass above the dashed ∆=0 line
+                                                                                marks videos that improve over CLOT, mass below it marks regressions.
+rather than relying only on dataset-level averages (App. A). It also
+reports complete hyperparameter settings (App. B), additional sensi-
+tivity results (App. C), computational-cost measurements (App. D),                                              TABLE V
+and further qualitative examples (App. E). Together, these analyses             H YPERPARAMETER SETTINGS USED FOR D-CLOT ACROSS DATASETS . FS
+clarify where the gains come from, how stable they are, and the                    (M ID ), FS (E VAL ) AND A101 DENOTE THE 50 S ALADS M ID , E VAL
+additional cost of each variant.                                                               SPLITS , AND A SSEMBLY 101, RESPECTIVELY.
+
+
+                        A PPENDIX A                                                                        BF YTI FS (Mid) FS (Eval) DA A101
+             W HERE D O THE G AINS C OME F ROM ?                                      λF
+                                                                                       G                 0.10 0.10      0.05      0.05    0.05   0.03
+   Figure 6 analyses where the aggregate gains come from, moving                      λR
+                                                                                       G                 0.10 0.15      0.10      0.20    0.10   0.05
+                                                                                      Graph bandwidth h 0.05 0.05       0.05      0.03    0.05   0.08
+from dataset means to the per-video distribution. A mass above it                     Blend factor β     0.25 0.02      0.05      0.15    0.10   0.25
+denotes videos that improve, and a mass below it denotes regressions.                 K-means iterations 20 20           20         5      10     20
+This view distinguishes a broad, population-level effect from one                     Epochs              25 15          60        20     110     35
+carried by a few sequences, which dataset averages alone cannot
+reveal.
+   On FSeval, the entire distribution shifts upward: for both variants,
+the boxes lie predominantly above the zero line in MoF and in                   a sparser graph. For D-CLOTB , the auxiliary alignment weight is
+F1 for D-CLOT/D-CLOTB . The gains are therefore not driven by                   fixed at λa = 1.0 for all datasets except Breakfast (λa = 0.25),
+a few favourable sequences but reflect a consistent, population-                where a lighter alignment term better tolerates the noisier pseudo-
+level effect, and D-CLOTB shows the stronger shift, indicating that             labels typical of longer, unstructured activities.
+the assignment-aware barycentric update yields a more systematic                   Beyond this shared backbone, D-CLOT and D-CLOTB introduce
+alignment between frame representations and action prototypes.                  a small number of graph-regularisation and prototype-update hyper-
+   YTI exhibits a complementary regime. Its distributions stay con-             parameters: the frame and refined graph weights λF             R
+                                                                                                                                     G and λG , the
+centrated around zero but develop pronounced positive tails, pro-               graph bandwidth h, and the blend factor β. Rather than treat these as
+ducing sizeable average gains despite lower per-video win rates: the            free parameters tuned independently per dataset, we select them from
+refinements do not improve every sequence, but where they help, the             the robust, wide-margin operating region identified by the sensitivity
+gains outweigh the occasional regressions. The contrast between the             analysis in Sec.IV-E and in App. C which show performance to be
+two datasets thus reveals two operating modes, a stable and broadly             stable under moderate perturbation of each of these values; the per-
+distributed improvement on FSeval and a selective but high-impact               dataset choices used to produce our reported hyperparameters are
+correction on YTI, the latter consistent with YTI’s shorter, more               given in Tables V and VI for D-CLOT and D-CLOTB , respectively.
+heterogeneous videos and its independently trained activity-specific
+checkpoints, which introduce greater per-video variability.
+
+                          A PPENDIX B                                                                       A PPENDIX C
+                   H YPERPARAMETER D ETAILS                                                             S ENSITIVE A NALYSIS
+   D-CLOT and D-CLOTB share the same backbone and optimi-
+sation protocol, inherited unchanged from the underlying OT-based                  This section complements Section IV-E with MoF and mIoU for
+encoder: we use the Adam optimiser with a weight decay of 10−4 ,                the same datasets. MoF and mIoU peak at the same hyperparameter
+and, following [13], [16], set the number of action prototypes K                value as F1 in almost every case. A few FS-Eval configurations shift
+to the ground-truth number of actions per activity category/dataset.            the MoF optimum by one grid step and under 1.5 points, with F1 and
+The temporal-consistency radius r of the base OT solver is fixed at             mIoU unaffected. This is consistent with FS-Eval’s coarse 12-class
+0.02 for all datasets, except for Breakfast, where the longer and more          structure, where MoF depends on coverage of a few long segments
+finely segmented videos benefit from a wider window (r = 0.04). The             and is sensitive to the handful of boundary frames a one-step change
+frame/action affinity graph used by the graph-constrained modules is            reassigns, whereas F1 and mIoU are not. No hyperparameter trades
+sparsified to its 32 nearest neighbours throughout, except Assem-               one metric off against another, so the F1 gains in the main text are
+bly101 (16), whose substantially longer, multi-view videos favour               not an artefact of over- or under-segmentation
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE                                                                                                        14
+
+
+
+                            TABLE VI
+ H YPERPARAMETER SETTINGS USED FOR D-CLOTB ACROSS DATASETS .
+ FS (M), FS (E) AND A101 DENOTE THE 50 S ALADS M ID , E VAL SPLITS ,
+                 AND A SSEMBLY 101, RESPECTIVELY.
+
+
+                                  BF YTI FS (Mid) FS (Eval) DA A101
+      λF
+       G                          0.01 0.05    0.10     0.05    0.05   0.03
+      λR
+       G                          0.15 0.10    0.10     0.10    0.10   0.05
+      Graph bandwidth h           0.02 0.08    0.05     0.02    0.08   0.08
+      Blend factor β              0.05 0.25    0.25     0.02    0.05   0.25
+      Barycentric inner steps S    2    2       2        2       2       2
+      Epochs                       50 30        35       20      90     35
+                                                                                   (a) Frame graph weight λF
+                                                                                                           G                   (b) Refine graph weight λR
+                                                                                                                                                        G
+
+
+
+
+    (a) Frame graph weight λF
+                            G                 (b) Refine graph weight λR
+                                                                       G
+                                                                                         (c) Graph bandwidth h                      (d) Blend factor β
+
+
+
+
+                                                                                         (e) k-means refinement                  (f) Barycentric refinement
+       (c) Graph bandwidth h                      (d) Blend factor β
+
+                                                                               Fig. 8. Sensitivity analysis on mof. Each panel varies one hyperparameter
+                                                                               while keeping the remaining configuration fixed. Colours denote datasets and
+                                                                               line styles denote CLOT2 and CLOT2B .
+
+
+                                                                                                            TABLE VII
+                                                                                 T RAINING COST OF THE CLOT FAMILY ON THE B REAKFAST C O F F E E
+                                                                                ACTIVITY (K=7, 167 TRAINING VIDEOS , B=2, AND T =256 SAMPLED
+                                                                                  FRAMES PER VIDEO ). L ATENCY IS AVERAGED OVER 60 ITERATIONS
+                                                                                    AFTER 15 WARM - UP ITERATIONS ON A SINGLE RTX 4090. T HE
+       (e) k-means refinement                  (f) Barycentric refinement           REFINEMENT COLUMN REPORTS ITS COST AND UPDATE PERIOD .
+
+                                                                                Method      Params   GFLOPs     Iter. (ms)   Memory (MB)         Refinement    Epoch (s)
+                                                                                CLOT          92.5     0.036   61.7 ± 0.8           70.9                   –        5.02
+Fig. 7. Sensitivity analysis on mIoU. Each panel varies one hyperparameter      D-CLOT        92.5     0.077   63.8 ± 0.6           75.5    1,915 ms / epoch        7.08
+while keeping the remaining configuration fixed. Colours denote datasets and    D-CLOTB       92.5     0.077   73.2 ± 1.1           81.2   26 ms / 10 epochs        5.49
+line styles denote D-CLOT and D-CLOTB .
+
+
+                                                                               preserves the inference cost of CLOT, while D-CLOTB provides a
+                                  A PPENDIX D                                  stronger assignment-aware refinement at a moderate additional cost.
+         C OMPUTACIONAL COST AND PRACTICALITY
+   D-CLOT and D-CLOTB retain the same 92.5K trainable parame-                                               A PPENDIX E
+ters as CLOT. Their improvements therefore do not rely on additional
+model capacity. Table VII reports training time, inference latency, and                              M ORE QUALITATIVE RESULTS
+peak GPU memory on the Breakfast coffee activity. All methods                     Figure 9 provides additional qualitative comparisons across a
+use the same encoder, OT configuration, batch size, and hardware.              broader set of videos. The results reinforce the trends observed in
+D-CLOT adds 2.06 s per training epoch due to the periodic K-means              the main paper: D-CLOT and D-CLOTB better preserve temporal
+prototype update. This operation is used only during training, and             continuity, recover short and ambiguous actions, and reduce both
+its inference latency remains comparable to CLOT. D-CLOTB adds                 over-segmentation and boundary drift relative to CLOT. In particular,
+0.47 s per epoch. Its barycentric re-estimation costs only 26 ms every         the barycentric refinement of D-CLOTB yields more coherent action
+ten epochs. At inference, the inner refinement increases latency by            segments in challenging transition regions. The same behaviour
+8.2 ms per video. Peak memory remains below 82 MB for all variants.            appears on BF and YTI in Figure 10: both variants track the
+Overall, the proposed closed loops introduce limited computational             long dominant actions well, but D-CLOT tends to drop the short
+overhead and require no additional trainable parameters. D-CLOT                terminal segments (the trailing blue on BF, the closing teal on YTI),
+IEEE TRANSACTIONS ON PATTERN ANALYSIS AND MACHINE INTELLIGENCE            15
+
+
+
+
+Fig. 9. Example segmentation from DA [12] (top) and FS (Eval) [20]
+(bottom). We report the ground-truth (GT), the results of CLOT, and the
+result in ours two variants, D-CLOT and D-CLOTB .
+
+
+
+
+Fig. 10. Example segmentation from Breakfast [18] (top) and YTI [19]
+(bottom), We report the ground-truth (GT), the results of CLOT, and the
+result in ours two variants, D-CLOT and D-CLOTB .
+
+whereas D-CLOTB recovers them and preserves the GT ordering
+more faithfully. This is consistent with the quantitative trend: D-
+CLOTB preserves exactly the short, imbalanced actions that drive
+F1/mIoU while barely affecting the long-action-dominated MoF.
+
