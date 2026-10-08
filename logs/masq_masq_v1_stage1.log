@@ -1,0 +1,278 @@
+﻿
+Using Python: C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\python.exe
+Running: C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\python.exe -m script.week5.masq_experiments.run --run-id masq_v1 --stage 1 --timings-from masq_smoke --hours 6
+[gates] passed under the current code hash (cached)
+[run 24/30] M-pub__babel1__seed1538574472 train
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[M-pub__babel1__seed1538574472] epoch 1/30 rec 83.480697 commit 160.135116 vel 5.763201 dead 107
+[M-pub__babel1__seed1538574472] epoch 2/30 rec 54.061919 commit 17.014198 vel 5.152806 dead 39
+[M-pub__babel1__seed1538574472] epoch 3/30 rec 44.850482 commit 11.824151 vel 4.110893 dead 17
+[M-pub__babel1__seed1538574472] epoch 4/30 rec 34.570531 commit 6.398897 vel 3.375986 dead 11
+[M-pub__babel1__seed1538574472] epoch 5/30 rec 33.793289 commit 5.249488 vel 2.827456 dead 6
+[M-pub__babel1__seed1538574472] epoch 6/30 rec 33.921866 commit 4.752902 vel 2.267349 dead 5
+[M-pub__babel1__seed1538574472] epoch 7/30 rec 34.623812 commit 4.870122 vel 2.010706 dead 5
+[M-pub__babel1__seed1538574472] epoch 8/30 rec 30.683939 commit 4.615026 vel 1.824787 dead 4
+[M-pub__babel1__seed1538574472] epoch 9/30 rec 29.766272 commit 4.906344 vel 1.654653 dead 9
+[M-pub__babel1__seed1538574472] epoch 10/30 rec 29.713884 commit 5.019114 vel 1.623243 dead 3
+[M-pub__babel1__seed1538574472] epoch 11/30 rec 27.260667 commit 4.779548 vel 1.497321 dead 4
+[M-pub__babel1__seed1538574472] epoch 12/30 rec 26.372469 commit 5.133422 vel 1.490675 dead 6
+[M-pub__babel1__seed1538574472] epoch 13/30 rec 27.112410 commit 5.863034 vel 1.417189 dead 6
+[M-pub__babel1__seed1538574472] epoch 14/30 rec 25.139406 commit 5.787264 vel 1.355091 dead 5
+[M-pub__babel1__seed1538574472] epoch 15/30 rec 26.065958 commit 5.914144 vel 1.307671 dead 7
+[M-pub__babel1__seed1538574472] epoch 16/30 rec 27.850957 commit 5.907735 vel 1.314116 dead 5
+[M-pub__babel1__seed1538574472] epoch 17/30 rec 26.928705 commit 5.564409 vel 1.304734 dead 3
+[M-pub__babel1__seed1538574472] epoch 18/30 rec 29.708385 commit 5.127921 vel 1.233282 dead 6
+[M-pub__babel1__seed1538574472] epoch 19/30 rec 27.495987 commit 4.231376 vel 1.210193 dead 3
+[M-pub__babel1__seed1538574472] epoch 20/30 rec 26.746176 commit 4.229754 vel 1.166832 dead 7
+[M-pub__babel1__seed1538574472] epoch 21/30 rec 23.349639 commit 3.973181 vel 1.216887 dead 3
+[M-pub__babel1__seed1538574472] epoch 22/30 rec 25.280588 commit 3.674190 vel 1.145236 dead 5
+[M-pub__babel1__seed1538574472] epoch 23/30 rec 21.651288 commit 3.565493 vel 1.160814 dead 3
+[M-pub__babel1__seed1538574472] epoch 24/30 rec 22.507008 commit 3.115657 vel 1.199495 dead 3
+[M-pub__babel1__seed1538574472] epoch 25/30 rec 23.764796 commit 4.327546 vel 1.182463 dead 3
+[M-pub__babel1__seed1538574472] epoch 26/30 rec 20.180125 commit 3.953387 vel 1.422720 dead 4
+[M-pub__babel1__seed1538574472] epoch 27/30 rec 17.900618 commit 3.541498 vel 1.377353 dead 2
+[M-pub__babel1__seed1538574472] epoch 28/30 rec 19.056316 commit 3.963402 vel 1.542922 dead 3
+[M-pub__babel1__seed1538574472] epoch 29/30 rec 19.495916 commit 4.353488 vel 1.615311 dead 4
+[M-pub__babel1__seed1538574472] epoch 30/30 rec 20.105654 commit 6.131036 vel 1.718535 dead 3
+[run 24/30] M-pub__babel1__seed1538574472 score
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[run 24/30] M-pub__babel1__seed1538574472 diagnose
+[run 25/30] S0__lara__seed111 train
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[S0__lara__seed111] epoch 1/30 rec 113.033848 commit 61.800377 vel 0.000000 dead 38
+[S0__lara__seed111] epoch 2/30 rec 33.071145 commit 9.203607 vel 0.000000 dead 1
+[S0__lara__seed111] epoch 3/30 rec 30.765023 commit 6.647102 vel 0.000000 dead 2
+[S0__lara__seed111] epoch 4/30 rec 28.467843 commit 5.805931 vel 0.000000 dead 4
+[S0__lara__seed111] epoch 5/30 rec 29.186791 commit 5.445611 vel 0.000000 dead 1
+[S0__lara__seed111] epoch 6/30 rec 29.447465 commit 5.370173 vel 0.000000 dead 3
+[S0__lara__seed111] epoch 7/30 rec 27.061430 commit 5.021061 vel 0.000000 dead 2
+[S0__lara__seed111] epoch 8/30 rec 26.605687 commit 4.947677 vel 0.000000 dead 3
+[S0__lara__seed111] epoch 9/30 rec 26.408584 commit 4.782075 vel 0.000000 dead 3
+[S0__lara__seed111] epoch 10/30 rec 28.156721 commit 4.823219 vel 0.000000 dead 3
+[S0__lara__seed111] epoch 11/30 rec 27.081104 commit 5.076203 vel 0.000000 dead 2
+[S0__lara__seed111] epoch 12/30 rec 28.096981 commit 4.899317 vel 0.000000 dead 2
+[S0__lara__seed111] epoch 13/30 rec 25.250084 commit 4.676533 vel 0.000000 dead 2
+[S0__lara__seed111] epoch 14/30 rec 24.999373 commit 4.432823 vel 0.000000 dead 1
+[S0__lara__seed111] epoch 15/30 rec 24.848647 commit 4.379955 vel 0.000000 dead 1
+[S0__lara__seed111] epoch 16/30 rec 25.289653 commit 4.439690 vel 0.000000 dead 3
+[S0__lara__seed111] epoch 17/30 rec 24.946983 commit 4.579635 vel 0.000000 dead 3
+[S0__lara__seed111] epoch 18/30 rec 25.590500 commit 4.616469 vel 0.000000 dead 2
+[S0__lara__seed111] epoch 19/30 rec 25.892299 commit 4.739333 vel 0.000000 dead 3
+[S0__lara__seed111] epoch 20/30 rec 22.972197 commit 4.870932 vel 0.000000 dead 3
+[S0__lara__seed111] epoch 21/30 rec 19.434741 commit 5.412041 vel 0.000000 dead 1
+[S0__lara__seed111] epoch 22/30 rec 19.298449 commit 5.532236 vel 0.000000 dead 1
+[S0__lara__seed111] epoch 23/30 rec 18.453434 commit 5.352793 vel 0.000000 dead 2
+[S0__lara__seed111] epoch 24/30 rec 17.506729 commit 5.448885 vel 0.000000 dead 2
+[S0__lara__seed111] epoch 25/30 rec 16.243987 commit 5.424236 vel 0.000000 dead 0
+[S0__lara__seed111] epoch 26/30 rec 16.496751 commit 5.559127 vel 0.000000 dead 0
+[S0__lara__seed111] epoch 27/30 rec 15.905719 commit 5.492085 vel 0.000000 dead 0
+[S0__lara__seed111] epoch 28/30 rec 15.933333 commit 5.597063 vel 0.000000 dead 1
+[S0__lara__seed111] epoch 29/30 rec 15.582104 commit 5.510151 vel 0.000000 dead 0
+[S0__lara__seed111] epoch 30/30 rec 16.150783 commit 5.596546 vel 0.000000 dead 0
+[run 25/30] S0__lara__seed111 score
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[run 25/30] S0__lara__seed111 diagnose
+[run 26/30] M-pub__lara__seed111 train
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[M-pub__lara__seed111] epoch 1/30 rec 194.520667 commit 104.014791 vel 13.136544 dead 78
+[M-pub__lara__seed111] epoch 2/30 rec 90.558441 commit 17.000944 vel 10.114359 dead 21
+[M-pub__lara__seed111] epoch 3/30 rec 89.481741 commit 10.779245 vel 8.089118 dead 11
+[M-pub__lara__seed111] epoch 4/30 rec 86.324212 commit 8.510385 vel 6.603296 dead 10
+[M-pub__lara__seed111] epoch 5/30 rec 83.094383 commit 8.213443 vel 5.555100 dead 13
+[M-pub__lara__seed111] epoch 6/30 rec 73.239037 commit 6.170140 vel 4.683406 dead 7
+[M-pub__lara__seed111] epoch 7/30 rec 83.025629 commit 6.626049 vel 4.058596 dead 8
+[M-pub__lara__seed111] epoch 8/30 rec 78.354772 commit 5.976362 vel 3.730548 dead 8
+[M-pub__lara__seed111] epoch 9/30 rec 80.032387 commit 5.140429 vel 3.417905 dead 8
+[M-pub__lara__seed111] epoch 10/30 rec 75.899045 commit 4.966838 vel 3.147741 dead 6
+[M-pub__lara__seed111] epoch 11/30 rec 73.718118 commit 4.356243 vel 2.979315 dead 10
+[M-pub__lara__seed111] epoch 12/30 rec 77.431930 commit 3.932467 vel 2.957712 dead 5
+[M-pub__lara__seed111] epoch 13/30 rec 72.903777 commit 3.548422 vel 2.946008 dead 3
+[M-pub__lara__seed111] epoch 14/30 rec 73.363300 commit 3.532008 vel 2.859407 dead 6
+[M-pub__lara__seed111] epoch 15/30 rec 72.764790 commit 3.876176 vel 2.889637 dead 7
+[M-pub__lara__seed111] epoch 16/30 rec 65.477330 commit 3.496434 vel 3.146582 dead 4
+[M-pub__lara__seed111] epoch 17/30 rec 66.004519 commit 3.264617 vel 3.139227 dead 2
+[M-pub__lara__seed111] epoch 18/30 rec 67.681840 commit 3.934286 vel 2.832247 dead 2
+[M-pub__lara__seed111] epoch 19/30 rec 57.467972 commit 3.429947 vel 2.760009 dead 1
+[M-pub__lara__seed111] epoch 20/30 rec 57.713431 commit 3.268357 vel 2.614960 dead 3
+[M-pub__lara__seed111] epoch 21/30 rec 48.515448 commit 4.307174 vel 2.986696 dead 5
+[M-pub__lara__seed111] epoch 22/30 rec 41.204519 commit 4.595368 vel 2.575542 dead 6
+[M-pub__lara__seed111] epoch 23/30 rec 40.665721 commit 4.439663 vel 2.112766 dead 0
+[M-pub__lara__seed111] epoch 24/30 rec 40.677616 commit 4.420813 vel 1.926424 dead 0
+[M-pub__lara__seed111] epoch 25/30 rec 36.263215 commit 4.503395 vel 1.871600 dead 3
+[M-pub__lara__seed111] epoch 26/30 rec 38.909710 commit 4.485797 vel 1.681591 dead 0
+[M-pub__lara__seed111] epoch 27/30 rec 33.692775 commit 4.591461 vel 1.549029 dead 0
+[M-pub__lara__seed111] epoch 28/30 rec 33.929342 commit 4.950476 vel 1.454196 dead 2
+[M-pub__lara__seed111] epoch 29/30 rec 31.935213 commit 5.131509 vel 1.378607 dead 5
+[M-pub__lara__seed111] epoch 30/30 rec 34.554335 commit 4.958870 vel 1.323027 dead 1
+[run 26/30] M-pub__lara__seed111 score
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[run 26/30] M-pub__lara__seed111 diagnose
+[run 27/30] S0__lara__seed222 train
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[S0__lara__seed222] epoch 1/30 rec 110.817295 commit 49.638161 vel 0.000000 dead 55
+[S0__lara__seed222] epoch 2/30 rec 32.853613 commit 7.628115 vel 0.000000 dead 3
+[S0__lara__seed222] epoch 3/30 rec 29.845746 commit 5.826039 vel 0.000000 dead 3
+[S0__lara__seed222] epoch 4/30 rec 28.188174 commit 5.311729 vel 0.000000 dead 2
+[S0__lara__seed222] epoch 5/30 rec 26.470768 commit 4.932184 vel 0.000000 dead 2
+[S0__lara__seed222] epoch 6/30 rec 19.991545 commit 5.991927 vel 0.000000 dead 2
+[S0__lara__seed222] epoch 7/30 rec 17.971889 commit 5.796770 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 8/30 rec 17.551631 commit 5.751460 vel 0.000000 dead 1
+[S0__lara__seed222] epoch 9/30 rec 18.816105 commit 5.706265 vel 0.000000 dead 1
+[S0__lara__seed222] epoch 10/30 rec 17.479972 commit 5.783903 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 11/30 rec 16.392479 commit 5.453575 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 12/30 rec 17.903210 commit 5.650509 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 13/30 rec 16.728861 commit 5.506632 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 14/30 rec 16.966980 commit 5.593303 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 15/30 rec 16.593119 commit 5.555019 vel 0.000000 dead 1
+[S0__lara__seed222] epoch 16/30 rec 16.155009 commit 5.479081 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 17/30 rec 16.199646 commit 5.446296 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 18/30 rec 16.483334 commit 5.493576 vel 0.000000 dead 1
+[S0__lara__seed222] epoch 19/30 rec 17.298878 commit 5.707519 vel 0.000000 dead 1
+[S0__lara__seed222] epoch 20/30 rec 16.008169 commit 5.640449 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 21/30 rec 17.675680 commit 5.663781 vel 0.000000 dead 2
+[S0__lara__seed222] epoch 22/30 rec 16.071855 commit 5.577365 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 23/30 rec 15.991760 commit 5.500616 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 24/30 rec 17.434667 commit 5.571284 vel 0.000000 dead 1
+[S0__lara__seed222] epoch 25/30 rec 16.036713 commit 5.560241 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 26/30 rec 15.402096 commit 5.447690 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 27/30 rec 16.412778 commit 5.535848 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 28/30 rec 16.201793 commit 5.520818 vel 0.000000 dead 1
+[S0__lara__seed222] epoch 29/30 rec 15.882898 commit 5.481228 vel 0.000000 dead 0
+[S0__lara__seed222] epoch 30/30 rec 15.830489 commit 5.478617 vel 0.000000 dead 0
+[run 27/30] S0__lara__seed222 score
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[run 27/30] S0__lara__seed222 diagnose
+[run 28/30] M-pub__lara__seed222 train
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[M-pub__lara__seed222] epoch 1/30 rec 174.757527 commit 73.009975 vel 11.240366 dead 67
+[M-pub__lara__seed222] epoch 2/30 rec 92.202277 commit 14.704718 vel 8.385267 dead 14
+[M-pub__lara__seed222] epoch 3/30 rec 86.167686 commit 9.979723 vel 6.489242 dead 12
+[M-pub__lara__seed222] epoch 4/30 rec 82.390945 commit 7.432243 vel 5.318564 dead 7
+[M-pub__lara__seed222] epoch 5/30 rec 77.565962 commit 5.478140 vel 4.469234 dead 1
+[M-pub__lara__seed222] epoch 6/30 rec 82.692989 commit 5.780391 vel 3.871850 dead 9
+[M-pub__lara__seed222] epoch 7/30 rec 76.858118 commit 5.508970 vel 3.479432 dead 7
+[M-pub__lara__seed222] epoch 8/30 rec 77.729850 commit 3.920046 vel 3.075503 dead 4
+[M-pub__lara__seed222] epoch 9/30 rec 83.696089 commit 4.790231 vel 2.909160 dead 9
+[M-pub__lara__seed222] epoch 10/30 rec 79.615551 commit 4.486173 vel 2.636115 dead 5
+[M-pub__lara__seed222] epoch 11/30 rec 74.732136 commit 4.134103 vel 2.391365 dead 4
+[M-pub__lara__seed222] epoch 12/30 rec 75.660401 commit 3.719543 vel 2.295491 dead 3
+[M-pub__lara__seed222] epoch 13/30 rec 77.101153 commit 4.738846 vel 2.148584 dead 3
+[M-pub__lara__seed222] epoch 14/30 rec 70.225835 commit 4.058613 vel 2.004126 dead 3
+[M-pub__lara__seed222] epoch 15/30 rec 65.540605 commit 4.131763 vel 1.930648 dead 3
+[M-pub__lara__seed222] epoch 16/30 rec 75.490570 commit 4.132821 vel 1.886167 dead 3
+[M-pub__lara__seed222] epoch 17/30 rec 77.154441 commit 4.582230 vel 1.853971 dead 3
+[M-pub__lara__seed222] epoch 18/30 rec 70.892605 commit 4.144990 vel 1.881557 dead 1
+[M-pub__lara__seed222] epoch 19/30 rec 70.063591 commit 4.029500 vel 2.064698 dead 1
+[M-pub__lara__seed222] epoch 20/30 rec 60.067247 commit 3.735713 vel 2.804148 dead 2
+[M-pub__lara__seed222] epoch 21/30 rec 54.231804 commit 3.152163 vel 3.898999 dead 4
+[M-pub__lara__seed222] epoch 22/30 rec 58.995765 commit 4.544874 vel 3.658615 dead 2
+[M-pub__lara__seed222] epoch 23/30 rec 50.188417 commit 6.094733 vel 3.720603 dead 5
+[M-pub__lara__seed222] epoch 24/30 rec 38.737198 commit 5.094943 vel 2.448699 dead 6
+[M-pub__lara__seed222] epoch 25/30 rec 36.374813 commit 4.733150 vel 2.100209 dead 1
+[M-pub__lara__seed222] epoch 26/30 rec 33.631892 commit 5.030230 vel 1.901822 dead 3
+[M-pub__lara__seed222] epoch 27/30 rec 36.105218 commit 4.782527 vel 1.697789 dead 2
+[M-pub__lara__seed222] epoch 28/30 rec 32.246977 commit 5.065498 vel 1.549244 dead 1
+[M-pub__lara__seed222] epoch 29/30 rec 31.311634 commit 5.395573 vel 1.460857 dead 0
+[M-pub__lara__seed222] epoch 30/30 rec 32.305235 commit 5.075781 vel 1.415890 dead 1
+[run 28/30] M-pub__lara__seed222 score
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[run 28/30] M-pub__lara__seed222 diagnose
+[run 29/30] S0__lara__seed1538574472 train
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[S0__lara__seed1538574472] epoch 1/30 rec 109.205491 commit 45.396700 vel 0.000000 dead 26
+[S0__lara__seed1538574472] epoch 2/30 rec 31.683624 commit 7.692932 vel 0.000000 dead 3
+[S0__lara__seed1538574472] epoch 3/30 rec 28.430943 commit 5.877637 vel 0.000000 dead 4
+[S0__lara__seed1538574472] epoch 4/30 rec 28.522158 commit 5.386001 vel 0.000000 dead 3
+[S0__lara__seed1538574472] epoch 5/30 rec 27.601995 commit 5.142789 vel 0.000000 dead 3
+[S0__lara__seed1538574472] epoch 6/30 rec 26.527845 commit 4.900587 vel 0.000000 dead 3
+[S0__lara__seed1538574472] epoch 7/30 rec 26.217523 commit 4.700621 vel 0.000000 dead 2
+[S0__lara__seed1538574472] epoch 8/30 rec 27.375597 commit 4.838560 vel 0.000000 dead 4
+[S0__lara__seed1538574472] epoch 9/30 rec 29.591123 commit 5.164267 vel 0.000000 dead 3
+[S0__lara__seed1538574472] epoch 10/30 rec 26.237443 commit 4.711489 vel 0.000000 dead 3
+[S0__lara__seed1538574472] epoch 11/30 rec 25.262702 commit 4.701690 vel 0.000000 dead 3
+[S0__lara__seed1538574472] epoch 12/30 rec 21.042774 commit 5.590553 vel 0.000000 dead 2
+[S0__lara__seed1538574472] epoch 13/30 rec 18.493812 commit 5.463585 vel 0.000000 dead 2
+[S0__lara__seed1538574472] epoch 14/30 rec 16.907221 commit 5.509769 vel 0.000000 dead 1
+[S0__lara__seed1538574472] epoch 15/30 rec 16.792295 commit 5.604284 vel 0.000000 dead 1
+[S0__lara__seed1538574472] epoch 16/30 rec 16.338341 commit 5.638988 vel 0.000000 dead 1
+[S0__lara__seed1538574472] epoch 17/30 rec 15.884653 commit 5.521560 vel 0.000000 dead 0
+[S0__lara__seed1538574472] epoch 18/30 rec 16.178936 commit 5.646167 vel 0.000000 dead 1
+[S0__lara__seed1538574472] epoch 19/30 rec 16.480836 commit 5.515094 vel 0.000000 dead 1
+[S0__lara__seed1538574472] epoch 20/30 rec 17.375020 commit 5.871866 vel 0.000000 dead 0
+[S0__lara__seed1538574472] epoch 21/30 rec 17.573111 commit 5.701018 vel 0.000000 dead 2
+[S0__lara__seed1538574472] epoch 22/30 rec 16.191770 commit 5.577859 vel 0.000000 dead 0
+[S0__lara__seed1538574472] epoch 23/30 rec 16.850628 commit 5.529031 vel 0.000000 dead 0
+[S0__lara__seed1538574472] epoch 24/30 rec 16.960538 commit 5.704767 vel 0.000000 dead 1
+[S0__lara__seed1538574472] epoch 25/30 rec 15.883568 commit 5.435374 vel 0.000000 dead 0
+[S0__lara__seed1538574472] epoch 26/30 rec 16.751579 commit 5.586659 vel 0.000000 dead 0
+[S0__lara__seed1538574472] epoch 27/30 rec 15.888534 commit 5.437381 vel 0.000000 dead 1
+[S0__lara__seed1538574472] epoch 28/30 rec 15.776126 commit 5.618102 vel 0.000000 dead 0
+[S0__lara__seed1538574472] epoch 29/30 rec 15.555582 commit 5.505659 vel 0.000000 dead 0
+[S0__lara__seed1538574472] epoch 30/30 rec 16.089583 commit 5.614378 vel 0.000000 dead 0
+[run 29/30] S0__lara__seed1538574472 score
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[run 29/30] S0__lara__seed1538574472 diagnose
+[run 30/30] M-pub__lara__seed1538574472 train
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[M-pub__lara__seed1538574472] epoch 1/30 rec 180.973050 commit 67.277341 vel 11.535919 dead 68
+[M-pub__lara__seed1538574472] epoch 2/30 rec 96.492335 commit 12.356301 vel 9.204972 dead 8
+[M-pub__lara__seed1538574472] epoch 3/30 rec 81.830640 commit 9.140562 vel 7.993606 dead 12
+[M-pub__lara__seed1538574472] epoch 4/30 rec 86.062341 commit 6.719999 vel 6.350199 dead 9
+[M-pub__lara__seed1538574472] epoch 5/30 rec 81.677460 commit 6.882891 vel 5.252652 dead 5
+[M-pub__lara__seed1538574472] epoch 6/30 rec 78.849009 commit 6.029783 vel 4.632165 dead 11
+[M-pub__lara__seed1538574472] epoch 7/30 rec 78.278731 commit 5.425144 vel 3.986359 dead 12
+[M-pub__lara__seed1538574472] epoch 8/30 rec 76.647182 commit 4.602704 vel 3.626142 dead 7
+[M-pub__lara__seed1538574472] epoch 9/30 rec 74.488305 commit 4.517834 vel 3.124856 dead 11
+[M-pub__lara__seed1538574472] epoch 10/30 rec 71.140719 commit 4.163335 vel 2.848852 dead 4
+[M-pub__lara__seed1538574472] epoch 11/30 rec 69.182199 commit 3.934145 vel 2.749137 dead 9
+[M-pub__lara__seed1538574472] epoch 12/30 rec 71.217445 commit 3.785705 vel 2.913894 dead 4
+[M-pub__lara__seed1538574472] epoch 13/30 rec 69.367654 commit 3.219609 vel 3.215104 dead 4
+[M-pub__lara__seed1538574472] epoch 14/30 rec 71.738833 commit 3.272299 vel 3.342783 dead 3
+[M-pub__lara__seed1538574472] epoch 15/30 rec 67.291036 commit 3.210278 vel 3.521147 dead 4
+[M-pub__lara__seed1538574472] epoch 16/30 rec 72.212237 commit 3.805482 vel 3.258991 dead 3
+[M-pub__lara__seed1538574472] epoch 17/30 rec 62.212808 commit 3.217883 vel 3.055017 dead 0
+[M-pub__lara__seed1538574472] epoch 18/30 rec 59.478722 commit 2.986894 vel 3.068158 dead 3
+[M-pub__lara__seed1538574472] epoch 19/30 rec 58.495818 commit 2.569511 vel 2.862219 dead 5
+[M-pub__lara__seed1538574472] epoch 20/30 rec 47.911422 commit 2.846659 vel 3.076355 dead 0
+[M-pub__lara__seed1538574472] epoch 21/30 rec 42.883288 commit 3.979376 vel 3.318739 dead 5
+[M-pub__lara__seed1538574472] epoch 22/30 rec 39.019230 commit 4.656753 vel 2.657166 dead 6
+[M-pub__lara__seed1538574472] epoch 23/30 rec 38.250070 commit 4.712187 vel 2.331717 dead 0
+[M-pub__lara__seed1538574472] epoch 24/30 rec 35.704049 commit 4.828530 vel 2.014796 dead 1
+[M-pub__lara__seed1538574472] epoch 25/30 rec 33.125194 commit 5.046603 vel 1.928270 dead 0
+[M-pub__lara__seed1538574472] epoch 26/30 rec 31.579056 commit 5.081314 vel 1.673478 dead 1
+[M-pub__lara__seed1538574472] epoch 27/30 rec 31.837987 commit 5.588448 vel 1.572293 dead 0
+[M-pub__lara__seed1538574472] epoch 28/30 rec 33.117680 commit 4.880562 vel 1.470473 dead 0
+[M-pub__lara__seed1538574472] epoch 29/30 rec 32.667797 commit 4.886192 vel 1.433114 dead 1
+[M-pub__lara__seed1538574472] epoch 30/30 rec 31.857188 commit 4.927297 vel 1.341415 dead 1
+[run 30/30] M-pub__lara__seed1538574472 score
+C:\Users\gzaz976\AppData\Local\anaconda3\envs\smq\lib\site-packages\tslearn\bases\bases.py:15: UserWarning: h5py not installed, hdf5 features will not be supported.
+Install h5py to use hdf5 features: http://docs.h5py.org/
+  warn(h5py_msg)
+[run 30/30] M-pub__lara__seed1538574472 diagnose
+[run] report: C:\Users\gzaz976\Documents\repo\SMQ\results\week5\masq_experiments\masq_v1\REPORT.md

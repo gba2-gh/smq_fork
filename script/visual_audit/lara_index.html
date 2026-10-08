@@ -1,0 +1,26 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LARa inspection atlas</title><style>
+:root{font:15px system-ui,sans-serif;color-scheme:light dark}body{max-width:1450px;margin:24px auto;padding:0 20px;line-height:1.45}h1{font-size:24px}h2{font-size:18px;margin-top:28px}.note{color:#69717c}label{display:inline-flex;flex-direction:column;margin:8px 16px 12px 0}select{font:inherit;padding:6px}table{border-collapse:collapse;width:100%;font-size:13px}th,td{border-bottom:1px solid #a0a8b344;padding:6px 10px;text-align:left}td.num{text-align:right;font-variant-numeric:tabular-nums}th button{border:0;background:none;color:inherit;font:inherit;font-weight:600}a{color:#2373bd}.overflow{overflow:auto}tr.selected{background:#6486a522}@media(prefers-color-scheme:dark){.note{color:#aab1bc}}
+</style></head><body><h1>LARa · inspection atlas</h1>
+<p class="note">44 matched evaluation recordings · six methods · three seeds. Recording links open synchronized motion and predictions. All recording rows remain available; the frozen inspection list is marked.</p>
+<label>Seed<select id="seed"></select></label><label>Order by<select id="order"><option value="name">Recording name</option><option value="worst">Lowest T2 B0 MoF</option><option value="extra">Most T2 B0 extra boundaries</option><option value="missed">Most T2 B0 missed boundaries</option><option value="gain">Largest GRU F1 gain</option></select></label>
+<h2>Recordings</h2><div class="overflow"><table id="records"></table></div>
+<h2>Action recall across the 44 recordings</h2><div class="overflow"><table id="actions"></table></div>
+<h2>Population scores</h2><div class="overflow"><table id="summary"></table></div>
+<h2>Historical pooled runs · separate protocol</h2><p class="note">These runs cover and map all 439 recordings. They are shown on the same source motion for inspection, but their scores are not paired with the 44-recording held-out results above.</p><div class="overflow"><table id="historical"></table></div>
+<p class="note">Extra/missed boundaries use one-to-one class-agnostic matching within ±0.24 seconds. A shifted transition can count as both. Numerical model comparisons here share a population and evaluator; the input and training objectives differ.</p>
+<p><a href="REPORT.md">Audit methods and limitations</a> · <a href="inspection_selection.csv">Frozen inspection list</a> · <a href="observations.csv">Observation ledger</a></p>
+<script id="data" type="application/json">__AUDIT_DATA__</script><script>
+"use strict";const D=JSON.parse(document.getElementById('data').textContent),$=x=>document.getElementById(x);
+const safe=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const f=x=>Number(x).toFixed(1),selected=new Set(D.selected.map(x=>x.recording));
+function tab(id,header,rows,linkFirst=false){$(id).innerHTML='<thead><tr>'+header.map(h=>'<th>'+safe(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr class="'+(selected.has(r[0])?'selected':'')+'">'+r.map((v,i)=>'<td class="'+(i?'num':'')+'">'+(i===0&&linkFirst?'<a href="'+D.records[v].page+'">'+safe(v)+'</a>':safe(v))+'</td>').join('')+'</tr>').join('')+'</tbody>';}
+for(const s of D.cells.map(x=>x.seed).filter((x,i,a)=>a.indexOf(x)===i))$('seed').add(new Option(s,s));
+tab('historical',['Run','Seed','MoF','F1@50'],D.historical.map(x=>[x.arm,x.seed,f(x.MoF),f(x.F1_50)]));
+function draw(){const cells=D.cells.filter(x=>x.seed===Number($('seed').value)),base=cells.find(x=>x.arm==='T2 B0'),gru=cells.find(x=>x.arm==='Ordered GRU');const order=$('order').value;
+let names=[...D.names];const val=n=>{let a=base.record_metrics[n],b=gru.record_metrics[n];return order==='worst'?a.MoF:order==='extra'?-a.extra_024s:order==='missed'?-a.missed_024s:-(b['F1@50']-a['F1@50']);};if(order!=='name')names.sort((a,b)=>val(a)-val(b)||a.localeCompare(b));
+tab('records',['Recording','Subject','Seconds','T2 MoF','T2 F1@50','T2 extra','T2 missed','GRU ΔF1'],names.map(n=>{const a=base.record_metrics[n],b=gru.record_metrics[n];return[n,D.records[n].subject,f(D.records[n].frames/D.fps),f(a.MoF),f(a['F1@50']),a.extra_024s,a.missed_024s,f(b['F1@50']-a['F1@50'])];}),true);
+tab('actions',['Method',...Object.values(D.labels)],cells.map(c=>[c.arm,...Object.keys(D.labels).map(k=>f(c.recall[k])+'%')]));
+tab('summary',['Method','MoF','Edit','F1@50'],cells.map(c=>[c.arm,f(c.metrics.MoF),f(c.metrics.Edit),f(c.metrics['F1@50'])]));}
+$('seed').onchange=draw;$('order').onchange=draw;draw();
+</script></body></html>

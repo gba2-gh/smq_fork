@@ -117,12 +117,25 @@ class RungResult:
     seconds: float
 
 
+class FinalSolveInvalid(RuntimeError):
+    """A final transport solve failed, so its assignments cannot be scored."""
+
+
 def categorical_final_ladder(theta: np.ndarray, recs: list[categorical.RecordingInput], num_states: int,
                              log_k: float, coeffs: transport.Coeffs, rungs: tuple[int, ...],
                              gts_by_name: dict[str, np.ndarray], starts_by_name: dict[str, np.ndarray],
-                             frame_counts_by_name: dict[str, int], deadline: float | None = None) -> list[RungResult]:
+                             frame_counts_by_name: dict[str, int], deadline: float | None = None,
+                             predictions_out: dict | None = None,
+                             fail_on_invalid: bool = False) -> list[RungResult]:
     """Cumulative-rung cold-start final solve (frozen_study.py's ladder
-    convention), evaluated under dataset-level Hungarian mapping."""
+    convention), evaluated under dataset-level Hungarian mapping.
+
+    `predictions_out`, when given a dict, is populated (in place, overwriting
+    any prior contents) with the LAST rung's per-recording frame-level state
+    predictions (`{name: int32[frame_count]}`) plus `"__window_states__"`
+    (`{name: int32[num_windows]}`, the pre-broadcast window-level states) --
+    aggregate metrics alone are not independently re-derivable/re-scorable
+    without these."""
 
     def cost_fn(th, rec):
         return emission_cost_k(th, rec.codes, log_k)
@@ -149,14 +162,22 @@ def categorical_final_ladder(theta: np.ndarray, recs: list[categorical.Recording
             log_t[rec.name] = result.log_t
             steps_done[rec.name] = steps_done.get(rec.name, 0) + result.accepted_steps
             status[rec.name] = result.status
+        if fail_on_invalid:
+            invalid = [name for name, value in status.items() if value == "invalid"]
+            if invalid:
+                raise FinalSolveInvalid(f"categorical final solve invalid at rung {rung} for "
+                                        f"{len(invalid)} recording(s), e.g. {invalid[:3]}")
         states = {name: t.argmax(dim=1).cpu().numpy().astype(np.int32) for name, t in log_t.items()}
         frame_preds, frame_gts = [], []
+        frame_preds_by_name = {}
         for rec in recs:
             s = states.get(rec.name)
             if s is None:
                 continue
-            frame_preds.append(at_evaluate.broadcast_to_frames(s, starts_by_name[rec.name], rec.lengths,
-                                                                frame_counts_by_name[rec.name]))
+            pred = at_evaluate.broadcast_to_frames(s, starts_by_name[rec.name], rec.lengths,
+                                                    frame_counts_by_name[rec.name])
+            frame_preds.append(pred)
+            frame_preds_by_name[rec.name] = pred
             frame_gts.append(gts_by_name[rec.name])
         metrics, _ = at_evaluate.score_pooled(frame_gts, frame_preds) if frame_preds else ({
             "MoF": float("nan"), "Edit": float("nan"), "F1@10": float("nan"), "F1@25": float("nan"),
@@ -166,6 +187,10 @@ def categorical_final_ladder(theta: np.ndarray, recs: list[categorical.Recording
             counts[s] = counts.get(s, 0) + 1
         out.append(RungResult(rung, metrics["MoF"], metrics["Edit"], metrics["F1@10"], metrics["F1@25"],
                               metrics["F1@50"], counts, time.perf_counter() - started))
+        if predictions_out is not None:
+            predictions_out.clear()
+            predictions_out.update(frame_preds_by_name)
+            predictions_out["__window_states__"] = dict(states)
     return out
 
 
@@ -204,7 +229,10 @@ def contextual_embeddings(model: CodeContextModel, codes_by_name: dict[str, np.n
 def contextual_final_ladder(mu: np.ndarray, recs: list[continuous.ContinuousRecordingInput],
                             coeffs: transport.Coeffs, rungs: tuple[int, ...],
                             gts_by_name: dict[str, np.ndarray], starts_by_name: dict[str, np.ndarray],
-                            frame_counts_by_name: dict[str, int], deadline: float | None = None) -> list[RungResult]:
+                            frame_counts_by_name: dict[str, int], deadline: float | None = None,
+                            predictions_out: dict | None = None,
+                            fail_on_invalid: bool = False) -> list[RungResult]:
+    """See `categorical_final_ladder`'s docstring for `predictions_out`."""
     num_states = mu.shape[0]
     log_t: dict[str, torch.Tensor] = {}
     steps_done: dict[str, int] = {}
@@ -228,14 +256,22 @@ def contextual_final_ladder(mu: np.ndarray, recs: list[continuous.ContinuousReco
             log_t[rec.name] = result.log_t
             steps_done[rec.name] = steps_done.get(rec.name, 0) + result.accepted_steps
             status[rec.name] = result.status
+        if fail_on_invalid:
+            invalid = [name for name, value in status.items() if value == "invalid"]
+            if invalid:
+                raise FinalSolveInvalid(f"continuous final solve invalid at rung {rung} for "
+                                        f"{len(invalid)} recording(s), e.g. {invalid[:3]}")
         states = {name: t.argmax(dim=1).cpu().numpy().astype(np.int32) for name, t in log_t.items()}
         frame_preds, frame_gts = [], []
+        frame_preds_by_name = {}
         for rec in recs:
             s = states.get(rec.name)
             if s is None:
                 continue
-            frame_preds.append(at_evaluate.broadcast_to_frames(s, starts_by_name[rec.name], rec.lengths,
-                                                                frame_counts_by_name[rec.name]))
+            pred = at_evaluate.broadcast_to_frames(s, starts_by_name[rec.name], rec.lengths,
+                                                    frame_counts_by_name[rec.name])
+            frame_preds.append(pred)
+            frame_preds_by_name[rec.name] = pred
             frame_gts.append(gts_by_name[rec.name])
         metrics, _ = at_evaluate.score_pooled(frame_gts, frame_preds) if frame_preds else ({
             "MoF": float("nan"), "Edit": float("nan"), "F1@10": float("nan"), "F1@25": float("nan"),
@@ -245,6 +281,10 @@ def contextual_final_ladder(mu: np.ndarray, recs: list[continuous.ContinuousReco
             counts[s] = counts.get(s, 0) + 1
         out.append(RungResult(rung, metrics["MoF"], metrics["Edit"], metrics["F1@10"], metrics["F1@25"],
                               metrics["F1@50"], counts, time.perf_counter() - started))
+        if predictions_out is not None:
+            predictions_out.clear()
+            predictions_out.update(frame_preds_by_name)
+            predictions_out["__window_states__"] = dict(states)
     return out
 
 

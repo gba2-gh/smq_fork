@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LARa · Visual failure audit</title>
+<style>
+:root{color-scheme:light dark;font-family:system-ui,sans-serif;background:#fafafa;color:#202630}body{max-width:1400px;margin:32px auto;padding:0 22px}h1{font-size:26px}h2{font-size:19px;margin-top:28px}p{max-width:1050px;line-height:1.5}.sub{color:#57616d}.controls{display:flex;gap:18px;flex-wrap:wrap;align-items:end;margin:20px 0}label{display:flex;flex-direction:column;gap:6px;font-size:13px}select,input,button{font:inherit;padding:7px;border:1px solid #aab2bc;border-radius:4px;background:#fff;color:#202630}input[type=number]{width:90px}canvas{width:100%;display:block}table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:9px;text-align:left;border-bottom:1px solid #d6dae0}th{font-weight:600}td.num{text-align:right;font-variant-numeric:tabular-nums}.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px}.swatch{display:inline-block;width:12px;height:12px;margin-right:5px}.overflow{overflow-x:auto}#detail{min-height:24px;font-size:13px;margin-top:8px}a{color:#2468b3}summary{cursor:pointer}#sources{font:12px ui-monospace,monospace;white-space:pre-wrap;overflow-wrap:anywhere}@media(prefers-color-scheme:dark){:root{background:#171b20;color:#e7eaf0}.sub{color:#adb6c3}select,input,button{background:#252b33;color:#e7eaf0}td,th{border-color:#424b58}}
+</style></head><body>
+<h1>LARa · Where do the errors occur?</h1>
+<p class="sub">Six matched arms · three seeds · 44 evaluation recordings · no retraining. The same saved global Hungarian mapping is used in every recording. Subjects overlap between fitting and evaluation; tokenization is transductive.</p>
+<div class="controls">
+<label>Seed<select id="seed"></select></label>
+<label>Order recordings by<select id="order"><option value="name">Recording name</option><option value="low">Lowest B0 MoF</option><option value="extra">Most B0 extra boundaries</option><option value="missed">Most B0 missed boundaries</option><option value="delta">Largest GRU decline in F1@50</option></select></label>
+<label>Recording<select id="record"></select></label>
+<label>Display<select id="mode"><option value="pred">Hungarian action labels</option><option value="raw">Raw state IDs (local to each arm)</option><option value="oracle">Oracle many-to-one labels</option></select></label>
+<label>Start (seconds)<input id="start" type="number" min="0" step="1" value="0"></label>
+<label>End (seconds)<input id="end" type="number" min="1" step="1"></label>
+<button id="whole">Whole recording</button>
+</div>
+<div id="legend" class="legend"></div>
+<h2 id="recordTitle"></h2><canvas id="timeline" aria-label="Aligned ground-truth and prediction timelines"></canvas>
+<div id="detail" aria-live="polite">Hover over a segment to inspect its label and exact interval.</div>
+<p id="modeNote" class="sub"></p>
+<div class="overflow"><table id="recordMetrics"></table></div>
+<p class="sub">Extra/missed boundaries: one-to-one matching within 0.24 s, ignoring action identity. A displaced transition can count as both; these counts are not causal diagnoses. Metrics always refer to the saved Hungarian predictions, even when another display is selected.</p>
+<h2>Action recall · all 44 recordings</h2><div class="overflow"><table id="recall"></table></div>
+<h2>Errors by subject · current seed</h2><div class="overflow"><table id="subjects"></table></div>
+<h2>Population summary · current seed</h2><div class="overflow"><table id="summary"></table></div>
+<details><summary>Provenance and interpretation limits</summary><p>This view contains all evaluation recordings, including poor cases. Action colors are stable; raw state colors have no cross-model correspondence. The oracle display uses evaluation labels to merge states and is not a deployable method. No per-recording label remapping is performed. Motion replay is not included: a label timeline alone cannot tell whether a change is a meaningful movement phase, a subject cue, or sensor noise. Read recordings.csv and segments.csv for exact counts and intervals.</p><pre id="sources"></pre></details>
+<script id="data" type="application/json">__AUDIT_DATA__</script>
+<script>
+'use strict';
+const D=JSON.parse(document.getElementById('data').textContent), $=id=>document.getElementById(id);
+const colors=['#517dc4','#e49934','#6eaf73','#ac7bc4','#d75b64','#47a9b7','#b49c49','#999fa7'];
+const escapeText=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=x=>Number(x).toFixed(1); let active=[],marks=[];
+function color(v,raw=false){return colors[((v-(raw?0:1))%colors.length+colors.length)%colors.length];}
+function table(id,headers,rows){$(id).innerHTML='<thead><tr>'+headers.map(x=>'<th>'+escapeText(x)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(row=>'<tr>'+row.map((x,i)=>'<td class="'+(i?'num':'')+'">'+escapeText(x)+'</td>').join('')+'</tr>').join('')+'</tbody>';}
+for(const s of D.seeds)$('seed').add(new Option(s,s));
+function setCells(){active=D.cells.filter(c=>c.seed===Number($('seed').value));}
+function recordings(){setCells();const old=$('record').value,base=active[0],gru=active.find(c=>c.arm==='Ordered GRU');let names=Object.keys(D.recordings).sort();const order=$('order').value;
+const value=n=>{const m=base.records[n].metrics;return order==='low'?m.MoF:order==='extra'?-m.extra_024s:order==='missed'?-m.missed_024s:gru.records[n].metrics['F1@50']-m['F1@50'];};
+if(order!=='name')names.sort((a,b)=>value(a)-value(b)||a.localeCompare(b));$('record').replaceChildren(...names.map(n=>new Option(n,n)));if(names.includes(old))$('record').value=old; resetRange();}
+function resetRange(){$('start').value=0;$('end').value=D.recordings[$('record').value].frames/D.fps;render();}
+function render(){const name=$('record').value,rec=D.recordings[name],mode=$('mode').value;
+$('recordTitle').textContent=name+' · '+rec.subject+' · '+fmt(rec.frames/D.fps)+' seconds';
+$('legend').innerHTML=Object.entries(D.labels).map(([id,l])=>'<span><i class="swatch" style="background:'+color(Number(id))+'"></i>'+escapeText(id+' '+l)+'</span>').join('');
+$('modeNote').textContent=mode==='oracle'?'Oracle label-assisted merging: improvements here do not demonstrate unsupervised action discovery.':mode==='raw'?'GT uses action colors; the other rows use local state colors. Matching colors across rows do not imply matching meaning.':'Same action colors and global mapping across all recordings. Tick marks show ground-truth transitions.';
+table('recordMetrics',['Arm','MoF','F1@50','GT runs','Pred. runs','Extra (±0.24s)','Missed (±0.24s)'],active.map(c=>{const m=c.records[name].metrics;return[c.arm,fmt(m.MoF),fmt(m['F1@50']),m.gt_segments,m.predicted_segments,m.extra_024s,m.missed_024s];}));
+table('recall',['Arm',...Object.values(D.labels)],active.map(c=>[c.arm,...Object.keys(D.labels).map(k=>fmt(c.recall[k])+'%')]));
+const subjects=[...new Set(Object.values(D.recordings).map(r=>r.subject))].sort();
+table('subjects',['Subject',...D.arms],subjects.map(s=>[s,...active.map(c=>{const rr=Object.values(c.records).map(r=>r.metrics).filter(m=>m.subject===s);return fmt(rr.reduce((a,m)=>a+m.MoF*m.frames,0)/rr.reduce((a,m)=>a+m.frames,0))+'%';})]));
+table('summary',['Arm','MoF','Edit','F1@50','Mean extra / rec.','Mean missed / rec.'],active.map(c=>{const rr=Object.values(c.records).map(r=>r.metrics);return[c.arm,fmt(c.metrics.MoF),fmt(c.metrics.Edit),fmt(c.metrics['F1@50']),fmt(rr.reduce((s,m)=>s+m.extra_024s,0)/rr.length),fmt(rr.reduce((s,m)=>s+m.missed_024s,0)/rr.length)];}));
+$('sources').textContent=active.map(c=>c.arm+'\n'+c.source+'\nMapping: '+JSON.stringify(c.mapping)).join('\n\n');draw();}
+function draw(){const name=$('record').value,rec=D.recordings[name],mode=$('mode').value,canvas=$('timeline');const width=canvas.clientWidth,h=335,dpr=window.devicePixelRatio||1;canvas.width=width*dpr;canvas.height=h*dpr;canvas.style.height=h+'px';const ctx=canvas.getContext('2d');ctx.scale(dpr,dpr);
+const ink=getComputedStyle(document.body).color;ctx.fillStyle=ink;ctx.font='12px system-ui';marks=[];const left=Math.min(165,width*.26),right=width-15;
+let lo=Math.max(0,Math.min(Number($('start').value)*D.fps,rec.frames-1)),hi=Math.max(lo+1,Math.min(Number($('end').value)*D.fps,rec.frames));const x=t=>left+(t-lo)/(hi-lo)*(right-left);
+const rows=[['Ground truth',rec.gt,false],...active.map(c=>[c.arm,c.records[name][mode],mode==='raw'])];
+rows.forEach(([label,runs,raw],i)=>{const y=28+i*40;ctx.fillStyle=ink;ctx.fillText(label,0,y+18);for(const [s,e,v] of runs){if(e<=lo||s>=hi)continue;const a=x(Math.max(s,lo)),b=x(Math.min(e,hi));ctx.fillStyle=color(v,raw);ctx.fillRect(a,y,b-a,27);marks.push({x:a,y,w:b-a,h:27,text:label+' · '+(raw?'state '+v:D.labels[v])+' · '+fmt(s/D.fps)+'–'+fmt(e/D.fps)+' s'});if(b-a>45){ctx.fillStyle='#101010';ctx.fillText(String(v),a+4,y+18);}}
+ctx.strokeStyle=ink;ctx.globalAlpha=.35;for(const [s] of rec.gt){if(s>lo&&s<hi){ctx.beginPath();ctx.moveTo(x(s),y-3);ctx.lineTo(x(s),y+30);ctx.stroke();}}ctx.globalAlpha=1;});
+ctx.fillStyle=ink;for(let k=0;k<=5;k++){const t=lo+(hi-lo)*k/5;ctx.textAlign=k===5?'right':k===0?'left':'center';ctx.fillText(fmt(t/D.fps)+' s',x(t),h-8);}ctx.textAlign='left';}
+$('timeline').addEventListener('mousemove',e=>{const b=e.currentTarget.getBoundingClientRect(),x=e.clientX-b.left,y=e.clientY-b.top,m=marks.find(m=>x>=m.x&&x<=m.x+m.w&&y>=m.y&&y<=m.y+m.h);$('detail').textContent=m?m.text:'Hover over a segment to inspect its label and exact interval.';});
+$('seed').onchange=recordings;$('order').onchange=()=>{const old=$('record').value;recordings();$('record').selectedIndex=0;resetRange();};$('record').onchange=resetRange;$('mode').onchange=render;$('start').onchange=draw;$('end').onchange=draw;$('whole').onclick=resetRange;window.addEventListener('resize',draw);recordings();
+</script></body></html>

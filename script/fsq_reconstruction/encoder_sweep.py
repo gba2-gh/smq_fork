@@ -56,12 +56,15 @@ def load_source_config(source_dir: Path) -> PilotConfig:
     return PilotConfig(**{k: tuple(v) if isinstance(v, list) else v for k, v in raw.items()})
 
 
-def extract_raw_dataset(features_path: Path, window: int) -> dict[str, dict]:
+def extract_raw_dataset(features_path: Path, window: int, names: list[str] | None = None) -> dict[str, dict]:
     """Raw input patches on the same patch grid as `extract_recording`:
     per frame, the flattened (C, V, M) input; per patch, W frames
-    concatenated, with the terminal patch zero-padded."""
+    concatenated, with the terminal patch zero-padded. `names`, if given,
+    bounds extraction to that subset instead of every file under
+    `features_path` (e.g. for a capped smoke-test run) -- the directory is
+    still listed to preserve default ordering when `names` is None."""
     out = {}
-    for name in sorted(os.listdir(features_path)):
+    for name in (names if names is not None else sorted(os.listdir(features_path))):
         arr = np.load(features_path / name)  # (C,T,V,M)
         T = arr.shape[1]
         frames = torch.as_tensor(arr.transpose(1, 0, 2, 3).reshape(T, -1), dtype=torch.float32)
