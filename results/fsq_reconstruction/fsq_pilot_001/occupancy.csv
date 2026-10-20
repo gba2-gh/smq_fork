@@ -1,0 +1,9 @@
+active_codes,arm,below_threshold,cluster_size_max,cluster_size_median,cluster_size_min,epoch,kind
+512,vq,0,1.0,1.0,1.0,0,vq
+512,vq,0,57.1904296875,1.0,1.0,10,vq
+512,vq,0,98.43304443359375,1.0,1.0,20,vq
+512,vq,0,100.078125,1.0,1.0,30,vq
+,fsq,,,,,0,fsq
+,fsq,,,,,10,fsq
+,fsq,,,,,20,fsq
+,fsq,,,,,30,fsq

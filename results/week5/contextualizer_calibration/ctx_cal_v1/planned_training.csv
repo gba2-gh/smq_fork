@@ -1,0 +1,15 @@
+arm,batch_chunks,checkpoint_roles,config_name,context,family,group,guard_radius,horizon,horizon_steps,identity,job_id,mask_fraction,mask_span,nominal_tokens_per_update,optional,pipeline,ref_job_id,seed,stride,target_count
+context_quantized,64,ckpt_1k|ckpt_3k|ckpt_5k|selected|replay,reference,128,vq_native,main,14,5000,5000,3412f55694644a21,native_vq__ctx128_span8_g14_h5000_seed111_tcnone,0.3,8,8192,False,native_vq,,111,64,none
+context_id,64,selected|replay,reference,128,raw_kmeans,guard_ref,14,5000,5000,c2f668367ac0f1a2,raw__ctx128_span8_g14_h5000_seed111_tcnone,0.3,8,8192,False,raw,,111,64,none
+context_quantized,128,ckpt_1k|ckpt_3k|ckpt_5k|selected|replay,short_context,64,vq_native,main,14,5000,5000,302a795d9ffc1073,native_vq__ctx64_span8_g14_h5000_seed111_tcnone,0.3,8,8192,False,native_vq,,111,32,none
+context_quantized,64,ckpt_1k|ckpt_3k|ckpt_5k|selected|replay,long_mask,128,vq_native,main,14,5000,5000,adb5a7866403ad84,native_vq__ctx128_span16_g14_h5000_seed111_tcnone,0.3,16,8192,False,native_vq,,111,64,none
+context_quantized,128,ckpt_1k|ckpt_3k|ckpt_5k|selected|replay,combined,64,vq_native,main,14,5000,5000,0107aab0334c1c72,native_vq__ctx64_span16_g14_h5000_seed111_tcnone,0.3,16,8192,False,native_vq,,111,32,none
+context_id,64,ckpt_1k|ckpt_3k|ckpt_5k|selected|replay,reference,128,raw_kmeans,main,0,5000,5000,e152bff39bc0ada8,raw__ctx128_span8_g0_h5000_seed111_tcnone,0.3,8,8192,False,raw,,111,64,none
+context_id,128,ckpt_1k|ckpt_3k|ckpt_5k|selected|replay,short_context,64,raw_kmeans,main,0,5000,5000,701b5933d9a034dd,raw__ctx64_span8_g0_h5000_seed111_tcnone,0.3,8,8192,False,raw,,111,32,none
+context_id,64,ckpt_1k|ckpt_3k|ckpt_5k|selected|replay,long_mask,128,raw_kmeans,main,0,5000,5000,6ed076eaf15f035a,raw__ctx128_span16_g0_h5000_seed111_tcnone,0.3,16,8192,False,raw,,111,64,none
+context_id,128,ckpt_1k|ckpt_3k|ckpt_5k|selected|replay,combined,64,raw_kmeans,main,0,5000,5000,98eeefca135dbafc,raw__ctx64_span16_g0_h5000_seed111_tcnone,0.3,16,8192,False,raw,,111,32,none
+context_quantized,64,selected|final,reference,128,vq_native,horizon3k,14,3000,3000,6cb47cf4b15dc70c,native_vq__ctx128_span8_g14_h3000_seed111_tcnone,0.3,8,8192,False,native_vq,,111,64,none
+context_id,64,selected|final,reference,128,raw_kmeans,horizon3k,0,3000,3000,31f9f5cfe9ffdb4f,raw__ctx128_span8_g0_h3000_seed111_tcnone,0.3,8,8192,False,raw,,111,64,none
+context_quantized,64,selected|final|replay,reference,128,vq_native,seed222,14,5000,5000,49a26c2b544d2a76,native_vq__ctx128_span8_g14_h5000_seed222_tcnone,0.3,8,8192,False,native_vq,,222,64,none
+context_id,64,selected|final|replay,reference,128,raw_kmeans,seed222,0,5000,5000,ae237a673efcb8f8,raw__ctx128_span8_g0_h5000_seed222_tcnone,0.3,8,8192,False,raw,,222,64,none
+context_quantized,64,selected|final,long_mask,128,vq_native,target_match,14,5000,5000,b8ac3ff8b15a861c,native_vq__ctx128_span16_g14_h5000_seed111_tcmatch,0.3,16,8192,False,native_vq,native_vq__ctx128_span8_g14_h5000_seed111_tcnone,111,64,match

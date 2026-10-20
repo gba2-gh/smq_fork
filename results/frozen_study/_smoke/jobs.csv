@@ -1,0 +1,8 @@
+job_id,priority,dataset,normalize,seed,representation,h,prototype_source,outer_cap
+check_baselines,P0,,,,,,,
+pilot,P0,,,,,,,
+L_hugadb_raw_s111_pca_disc_saved,P1,hugadb,False,111,pca,,disc_saved,
+L_hugadb_raw_s111_pca_oracle,P1,hugadb,False,111,pca,,oracle,
+F_hugadb_raw_s111_pool_h2,P2,hugadb,False,111,pool_h2,2,disc_fit,2
+X_hugadb_raw_s111_pca,P3,hugadb,False,111,pca,,disc_fit,2
+probe_hugadb_raw,P4,hugadb,False,111,,,,

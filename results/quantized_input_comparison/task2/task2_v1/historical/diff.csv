@@ -1,0 +1,17 @@
+Edit_diff,F1@10_diff,F1@25_diff,F1@50_diff,MoF_diff,method,rung_steps,stream
+0.0,0.0,0.0,0.0,0.0,categorical_asot,500,vq_native
+0.0,0.0,0.0,0.0,0.0,categorical_asot,1000,vq_native
+0.0,0.0,0.0,0.0,0.0,categorical_asot,2000,vq_native
+0.0,0.0,0.0,0.0,0.0,categorical_asot,4000,vq_native
+0.0,0.0,0.0,0.0,0.0,contextual_asot,500,vq_native
+0.0,0.0,0.0,0.0,0.0,contextual_asot,1000,vq_native
+0.0,0.0,0.0,0.0,0.0,contextual_asot,2000,vq_native
+0.0,0.0,0.0,0.0,0.0,contextual_asot,4000,vq_native
+0.0,0.0,0.0,0.0,0.0,categorical_asot,500,raw
+0.0,0.0,0.0,0.0,0.0,categorical_asot,1000,raw
+0.0,0.0,0.0,0.0,0.0,categorical_asot,2000,raw
+0.0,0.0,0.0,0.0,0.0,categorical_asot,4000,raw
+0.0,0.0,0.0,0.0,0.0,contextual_asot,500,raw
+0.0,0.0,0.0,0.0,0.0,contextual_asot,1000,raw
+0.0,0.0,0.0,0.0,0.0,contextual_asot,2000,raw
+0.0,0.0,0.0,0.0,0.0,contextual_asot,4000,raw

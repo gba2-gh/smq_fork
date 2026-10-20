@@ -1,0 +1,19 @@
+Dataset,Class ID,Class,Segments,Frames
+hugadb,1,walking,959,314966
+hugadb,2,running,71,65917
+hugadb,3,going_up,436,135127
+hugadb,4,going_down,468,119819
+hugadb,5,sitting,340,82819
+hugadb,6,sitting_down,268,18180
+hugadb,7,standing_up,278,20603
+hugadb,8,standing,802,222649
+hugadb,10,up_by_elevator,108,89144
+hugadb,11,down_by_elevator,91,68762
+lara,1,Standing,3124,295488
+lara,2,Walking,1666,325489
+lara,3,Cart,940,313685
+lara,4,Handling(upwards),1489,205557
+lara,5,Handling(centred),4830,1151079
+lara,6,Handling(downwards),1322,183612
+lara,7,Synchronization,439,48168
+lara,8,None,295,110922

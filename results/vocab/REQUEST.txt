@@ -1,0 +1,176 @@
+Implement the following run, you can use up to 8 hours of execution time
+Objective
+
+Distinguish three explanations for the observed category collapse:
+
+Insufficient vocabulary: K=C forces distinct movements into too few categories.
+Unsuitable clustering geometry: action information is accessible in the features, but Euclidean k-means organizes it poorly.
+Weak segment representation: even a supervised diagnostic cannot reliably distinguish actions from these features.
+
+This run concerns action-level representations. It does not test discovery of sub-action primitives.
+
+Processing budget: eight hours maximum. Finish the primary comparisons before optional sensitivities. Preserve partial results if a later component exceeds the budget.
+
+Experiment 1 — Does the segment representation contain separable action information?
+
+Purpose: establish a diagnostic reference that the unsupervised partition can be compared against.
+
+Use the existing oracle action intervals and frozen SMQ features. Compare two representations of each interval:
+
+Mean latent feature.
+Existing eight-bin temporal representation.
+
+Use the existing participant-separated LARa folds and recording-separated BABEL-1 folds. Preserve the stated transductive encoder limitation.
+
+Fit two supervised diagnostic readouts:
+
+Regularized linear classifier.
+Small MLP with one hidden layer.
+
+Select regularization, stopping, and any decision thresholds using an inner split of the fitting data. Give both representations the same small tuning budget. Do not select configurations using outer-fold results.
+
+Report:
+
+Balanced accuracy and macro-F1.
+Per-class recall.
+Confusion matrix.
+Majority-class and class-prior baselines.
+Paired differences between mean and eight-bin representations.
+
+Keep the main analysis segment-weighted, and report duration-weighted results separately.
+
+Important: these classifiers are diagnostics, not unsupervised methods, and their scores are not mathematical upper bounds.
+
+Interpretation
+
+Observation	Implication
+Linear classification works well, clustering correspondence is weak	Action distinctions are accessible, but the partition does not align with them.
+MLP materially improves over linear classification	Action information is accessible through a more complex readout; geometry is a plausible limitation.
+Both readouts perform poorly	The current representation, label structure, or diagnostic training remains limiting.
+Eight-bin representation does not improve over mean pooling	No demonstrated benefit from this representation’s explicit temporal ordering on this endpoint.
+
+A negative MLP result must not be described as proof that information is absent.
+
+Experiment 2 — Does a larger vocabulary preserve distinctions across action boundaries?
+
+Purpose: test whether the oracle-boundary collapse is primarily a vocabulary constraint.
+
+Run the following controlled factorial comparison:
+
+Factor	Conditions
+Dataset	LARa, BABEL-1
+Boundaries	Fixed one-second, oracle
+Segment representation	Mean latent, eight-bin
+Vocabulary	C, 4C, 16C
+Clustering seeds	Three
+
+Reuse matching K=C results where configurations are identical. This is not a repeat of the earlier vocabulary sweep: the new comparison asks whether vocabulary interacts with meaningful segment boundaries.
+
+Use fitting-only scaling and codebooks. Keep all other preprocessing fixed.
+
+Measure four outcomes.
+
+A. Preservation of annotated transitions
+
+For oracle segments, calculate the fraction of adjacent segments with different annotated labels that receive different codes.
+
+Report:
+
+Overall transition retention.
+Macro-average across action-transition types.
+Transition confusion matrices.
+Occupancy and effective vocabulary.
+Results by seed.
+
+Higher K naturally increases the probability of distinct codes. Therefore, transition retention alone is not evidence of better semantic categories.
+
+B. Cross-recording action retrieval
+
+Use the existing common-anchor protocol with identical query/gallery timestamps across conditions.
+
+Report continuous and prototype retrieval, with explicit handling of ties. Include the proportion of queries for which ten or more gallery anchors share the query’s code; this shows how often retrieval effectively measures within-code label composition.
+
+C. Label consistency and coverage
+
+Report both:
+
+How consistently each code corresponds to an action.
+How fragmented each action is across codes.
+
+Use conditional entropies or equivalent homogeneity/completeness measures alongside AMI. Avoid interpreting increased purity alone as success when K increases.
+
+D. Train-fitted code-to-label transfer
+
+Fit the same regularized categorical readout on code IDs at each K. Evaluate on held-out recordings.
+
+Report balanced accuracy, macro-F1, and class coverage. Clearly identify this as supervised evaluation of an unsupervised representation.
+
+Do not use one-to-one Hungarian matching to penalize surplus codes at K>C. Do not collapse everything back to C merely to satisfy that mapping.
+
+Primary comparison
+
+Test whether increasing K improves the oracle-versus-fixed difference, rather than merely improving both conditions:
+
+$$ \bigl(S_{\mathrm{oracle},16C}-S_{\mathrm{fixed},16C}\bigr) - \bigl(S_{\mathrm{oracle},C}-S_{\mathrm{fixed},C}\bigr). $$
+
+Use common-anchor prototype retrieval as \(S\). Report the paired interval and absolute scores. Also show whether any improvement closes the continuous-versus-quantized gap.
+
+Experiment 3 — Does local sequence context recover what individual codes fail to expose?
+
+Run only after the first two experiments are complete.
+
+This tests a different possibility: individual codes may be poor action markers while their local combinations remain useful.
+
+Use fixed-window tokens only, so this experiment receives no oracle boundaries.
+
+Compare these supervised diagnostic inputs:
+
+Centre code.
+Histogram over five consecutive codes.
+Ordered concatenation of those five codes.
+Continuous features over the same five windows.
+
+Use a shared, regularized readout family and document parameter differences. Use fixed-dimensional prototype vectors for the ordered and continuous conditions. For the unordered condition, use mean prototype pooling as the primary capacity-comparable control; the histogram is secondary.
+
+Select K=C and K=16C in advance, rather than choosing whichever K performed best in Experiment 2.
+
+Predict the centre window’s existing action label. Report macro-F1 and balanced accuracy under the same outer folds.
+
+Interpretation
+
+Ordered context outperforming unordered context supports useful order-sensitive structure.
+Both context conditions improving equally supports contextual information, without an ordered-composition claim.
+Continuous context substantially outperforming token context indicates that quantization removes distinctions useful to this readout.
+
+This remains action-label accessibility, not proof of hierarchical composition.
+
+Execution schedule
+Budget	Work
+First 30 minutes	Confirm caches, folds, configurations, and runtime estimates.
+Next 90 minutes	Experiment 1 and initial clustering cells.
+Next 150 minutes	Complete Experiment 2 and paired analyses.
+Next 60 minutes	Experiment 3, if feasible.
+Final 30 minutes	Verification, figures, and research decision.
+
+Reduce optional analyses rather than cutting corners on fitting/evaluation separation. Do not launch another architecture, segmentation method, or loss sweep.
+
+Required decision
+
+End with a table assigning evidence to each explanation:
+
+Explanation	Supporting result	Contradicting result	Remaining uncertainty
+Vocabulary too coarse			
+Clustering geometry unsuitable			
+Segment representation weak			
+Information distributed across code sequences			
+
+Then recommend one next direction:
+
+Preserve richer vocabularies and investigate their temporal use.
+Improve representation geometry before quantization.
+Retain continuous representations because the tested discrete bottleneck offers no demonstrated benefit.
+Stop this branch if none of the diagnostics identifies useful structure to exploit.
+
+Do not finish with an unrestricted list of possible architectures. The deliverable is a mechanism-based decision about what deserves the remaining submission time.
+
+

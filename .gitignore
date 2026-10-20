@@ -1,9 +1,23 @@
 data/
 models/
-results/seg/cache/
-results/seg/raw/
-results/
 *pdf
 *.bin
 external/
 outputs/
+
+# Keep reports and spreadsheets; supporting experiment artifacts are local.
+/large/
+/results/**
+!/results/
+!/results/**/
+!/results/**/*.md
+!/results/**/*.txt
+!/results/**/*.pdf
+!/results/**/*.docx
+!/results/**/*.csv
+!/results/**/*.tsv
+!/results/**/*.xlsx
+!/results/**/*.xls
+!/results/**/*.ods
+!/results/**/.gitkeep
+/results/**/node_modules/

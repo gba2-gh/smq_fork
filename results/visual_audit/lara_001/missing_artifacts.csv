@@ -1,0 +1,2 @@
+run,artifact,status,reason
+unit_grouping/ug_lara_001,evaluation frame/window predictions,unavailable,"only aggregate scores, fitting plans and prototypes saved; no evaluation states or costs"

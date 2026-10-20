@@ -1,0 +1,14 @@
+Edit,F1@10,F1@25,F1@50,MoF,downstream_seed,method,reason,rung_steps,seconds,status,status_counts,stream
+19.06,5.78,5.12,4.89,33.33,111,categorical_asot,,5,4.588205500040203,,{'capped': 364},vq_native
+19.06,5.78,5.12,4.89,33.33,111,categorical_asot,,10,4.573596299975179,,{'capped': 364},vq_native
+17.74,10.06,6.6,5.16,40.81,111,contextual_asot,,5,4.367742100032046,,{'capped': 364},vq_native
+18.57,11.0,7.59,5.9,41.68,111,contextual_asot,,10,4.2252713000634685,,{'capped': 364},vq_native
+19.02,9.36,6.17,5.69,39.19,111,categorical_asot,,5,4.232998399995267,,{'capped': 364},vq_kmeans
+19.02,9.36,6.17,5.69,39.19,111,categorical_asot,,10,4.196182499988936,,{'capped': 364},vq_kmeans
+18.55,7.54,5.04,4.59,36.53,111,contextual_asot,,5,4.336776200099848,,{'capped': 364},vq_kmeans
+18.69,8.57,5.6,4.92,36.7,111,contextual_asot,,10,4.274737800005823,,{'capped': 364},vq_kmeans
+,,,,,111,categorical_asot,"only 5 occupied prototypes, need >= 10",,,unavailable,,fsq_native
+18.53,6.42,5.63,5.42,31.32,111,categorical_asot,,5,4.357098800013773,,{'capped': 364},fsq_kmeans
+18.53,6.42,5.63,5.42,31.32,111,categorical_asot,,10,4.287443800014444,,{'capped': 364},fsq_kmeans
+16.17,6.76,4.5,4.08,34.73,111,contextual_asot,,5,4.682907200069167,,{'capped': 364},fsq_kmeans
+16.49,8.05,4.83,4.18,34.84,111,contextual_asot,,10,4.601704200031236,,{'capped': 364},fsq_kmeans

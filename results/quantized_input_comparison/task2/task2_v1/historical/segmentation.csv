@@ -1,0 +1,17 @@
+Edit,F1@10,F1@25,F1@50,MoF,downstream_seed,method,rung_steps,seconds,status_counts,stream
+18.3,5.62,4.4,4.05,37.54,111,categorical_asot,500,35.49129619996529,{'converged': 364},vq_native
+18.3,5.62,4.4,4.05,37.54,111,categorical_asot,1000,4.050751799950376,{'converged': 364},vq_native
+18.3,5.62,4.4,4.05,37.54,111,categorical_asot,2000,4.033391999895684,{'converged': 364},vq_native
+18.3,5.62,4.4,4.05,37.54,111,categorical_asot,4000,4.049390600062907,{'converged': 364},vq_native
+38.92,43.5,41.41,36.77,41.71,111,contextual_asot,500,80.25204129994381,"{'capped': 207, 'converged': 157}",vq_native
+38.86,43.48,41.44,36.85,41.7,111,contextual_asot,1000,42.670382499927655,"{'converged': 259, 'capped': 105}",vq_native
+38.9,43.58,41.53,36.85,41.68,111,contextual_asot,2000,36.6150304999901,"{'converged': 328, 'capped': 36}",vq_native
+38.92,43.55,41.54,36.77,41.68,111,contextual_asot,4000,34.97127109998837,"{'converged': 347, 'capped': 17}",vq_native
+7.68,3.22,1.97,1.64,31.71,111,categorical_asot,500,36.530677199945785,"{'converged': 361, 'capped': 3}",raw
+7.68,3.22,1.97,1.64,31.71,111,categorical_asot,1000,4.041722900001332,{'converged': 364},raw
+7.68,3.22,1.97,1.64,31.71,111,categorical_asot,2000,3.751890299958177,{'converged': 364},raw
+7.68,3.22,1.97,1.64,31.71,111,categorical_asot,4000,3.8151047999272123,{'converged': 364},raw
+45.11,54.19,52.59,50.74,49.81,111,contextual_asot,500,77.42464029998519,"{'converged': 190, 'capped': 174}",raw
+45.13,54.15,52.64,50.87,49.81,111,contextual_asot,1000,35.31578880001325,"{'converged': 284, 'capped': 80}",raw
+45.11,54.14,52.64,50.85,49.72,111,contextual_asot,2000,32.010033900034614,"{'converged': 333, 'capped': 31}",raw
+45.13,54.16,52.64,50.82,49.65,111,contextual_asot,4000,33.5465965999756,"{'converged': 345, 'capped': 19}",raw

@@ -1,0 +1,17 @@
+This freezes the HuGaDB recipe—raw windows, K-means-512, the reference contextualizer, guard 0 and 5,000 updates—and fits the pipeline separately on:
+- HuGaDB.
+- BABEL-1, BABEL-2 and BABEL-3.
+- LARa, with global normalization and an additional per-recording normalization condition.
+Each condition uses three seeds. This tests transfer of the configuration; it does not apply one HuGaDB-trained model unchanged to other datasets.
+The completed rkx_v2 reports:
+Dataset / normalization	Selected-checkpoint F1@50	Locally rescored SMQ
+HuGaDB	46.23	24.30
+BABEL-1	14.25	22.38
+BABEL-2	15.09	27.52
+BABEL-3	15.32	19.35
+LARa / global	5.06	16.39
+LARa / per recording	7.13	16.39
+
+
+The reported conclusion is “does not transfer”: the strong HuGaDB result does not carry over to BABEL or LARa.
+Read [the completed cross-dataset report](C:/Users/gzaz976/Documents/repo/Behaviour/SMQ/results/week5/raw_kmeans_cross_dataset/rkx_v2/REPORT.md). rkx_v1 is an earlier incomplete run.

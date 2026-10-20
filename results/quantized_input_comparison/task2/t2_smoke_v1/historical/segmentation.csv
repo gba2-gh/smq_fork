@@ -1,0 +1,9 @@
+Edit,F1@10,F1@25,F1@50,MoF,downstream_seed,method,rung_steps,seconds,status_counts,stream
+21.46,6.77,5.43,4.61,39.1,111,categorical_asot,20,8.443993400083855,{'capped': 364},vq_e30
+21.46,6.77,5.43,4.61,39.1,111,categorical_asot,40,8.44846400001552,{'capped': 364},vq_e30
+39.58,45.52,41.65,37.43,54.8,111,contextual_asot,20,7.432706599938683,{'capped': 364},vq_e30
+45.67,53.66,50.69,47.52,54.54,111,contextual_asot,40,6.026890099979937,{'capped': 364},vq_e30
+7.68,3.22,1.97,1.64,31.7,111,categorical_asot,20,7.646928800037131,{'capped': 364},raw
+7.68,3.22,1.97,1.64,31.7,111,categorical_asot,40,7.644198499969207,{'capped': 364},raw
+34.11,39.88,37.67,34.85,50.38,111,contextual_asot,20,5.9781262000324205,{'capped': 364},raw
+41.12,49.65,47.81,45.35,50.35,111,contextual_asot,40,5.829813799937256,{'capped': 364},raw

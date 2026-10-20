@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "<string>", line 2, in <module>
+  File "C:\Users\gzaz976\Documents\repo\SMQ\script\segmodel\run_m1.py", line 37, in run
+    centroids,edges,labels,trace=fit_segmental(p,prepared.real_lengths,WINDOW[ds],CLASSES[ds],seed,lam)
+  File "C:\Users\gzaz976\Documents\repo\SMQ\script\segmodel\core.py", line 165, in fit_segmental
+    trace.append({"round":round+1,"objective":float(total),"state_segments":occupancy,"mean_duration_windows":float(np.average(weights))})
+TypeError: unsupported operand type(s) for +: 'builtin_function_or_method' and 'int'

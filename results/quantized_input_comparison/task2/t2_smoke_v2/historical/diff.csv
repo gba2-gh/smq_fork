@@ -1,0 +1,9 @@
+method,rung_steps,status,stream
+categorical_asot,20,no_historical_row,vq_native
+categorical_asot,40,no_historical_row,vq_native
+contextual_asot,20,no_historical_row,vq_native
+contextual_asot,40,no_historical_row,vq_native
+categorical_asot,20,no_historical_row,raw
+categorical_asot,40,no_historical_row,raw
+contextual_asot,20,no_historical_row,raw
+contextual_asot,40,no_historical_row,raw
